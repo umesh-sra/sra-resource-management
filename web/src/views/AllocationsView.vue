@@ -7,6 +7,7 @@ import type { Allocation, Page } from '@/types'
 import { fmtDate } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import PagerBar from '@/components/PagerBar.vue'
+import AllocationEditModal from '@/components/AllocationEditModal.vue'
 
 const router = useRouter()
 const toast = useToastStore()
@@ -16,6 +17,7 @@ const loading = ref(true)
 const from = ref('')
 const to = ref('')
 const page = ref(1)
+const editAlloc = ref<Allocation | null>(null)
 
 async function load() {
   loading.value = true
@@ -76,7 +78,10 @@ onMounted(load)
                 <td>{{ fmtDate(a.startDate) }} – {{ fmtDate(a.endDate) }}</td>
                 <td class="num">{{ a.effort }} {{ a.effortUnit === 'percent' ? '%' : 'h/wk' }}</td>
                 <td><span class="badge" :class="a.billable ? 'green' : 'gray'">{{ a.billable ? 'Billable' : 'Non-billable' }}</span></td>
-                <td class="num"><button class="btn btn-sm btn-danger" @click="remove(a)">Remove</button></td>
+                <td class="num">
+                  <button class="btn btn-sm" @click="editAlloc = a">Edit</button>
+                  <button class="btn btn-sm btn-danger" @click="remove(a)">Remove</button>
+                </td>
               </tr>
               <tr v-if="data && !data.items.length"><td colspan="7" class="empty">No allocations found.</td></tr>
             </template>
@@ -85,5 +90,10 @@ onMounted(load)
       </div>
       <PagerBar v-if="data" :meta="data.meta" @change="goPage" />
     </div>
+
+    <AllocationEditModal
+      v-if="editAlloc" :allocation="editAlloc"
+      @close="editAlloc = null" @saved="editAlloc = null; load()"
+    />
   </div>
 </template>

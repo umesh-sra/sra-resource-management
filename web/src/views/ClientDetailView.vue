@@ -6,6 +6,7 @@ import { ApiError } from '@/api/http'
 import type { ClientDetail } from '@/types'
 import { fmtDate, fmtMoney, initials, projectStatus } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
+import ModalDialog from '@/components/ModalDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +14,31 @@ const toast = useToastStore()
 
 const client = ref<ClientDetail | null>(null)
 const loading = ref(true)
+
+const showEdit = ref(false)
+const editName = ref('')
+const savingEdit = ref(false)
+
+function openEdit() {
+  if (!client.value) return
+  editName.value = client.value.name
+  showEdit.value = true
+}
+
+async function saveEdit() {
+  if (!client.value || !editName.value.trim()) return
+  savingEdit.value = true
+  try {
+    await clientsApi.update(client.value.id, { name: editName.value.trim() })
+    toast.success('Client updated')
+    showEdit.value = false
+    await load()
+  } catch (e) {
+    toast.error(e instanceof ApiError ? e.message : 'Could not update client')
+  } finally {
+    savingEdit.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -55,7 +81,10 @@ onMounted(load)
           <h1 style="margin-top: 4px">{{ client.name }}</h1>
           <div class="subtitle">{{ client.projects.length }} project(s) · {{ client.team.length }} people on the team</div>
         </div>
-        <button class="btn btn-danger" @click="remove">Delete</button>
+        <div class="row">
+          <button class="btn" @click="openEdit">Edit</button>
+          <button class="btn btn-danger" @click="remove">Delete</button>
+        </div>
       </div>
 
       <div class="card">
@@ -96,6 +125,17 @@ onMounted(load)
         </div>
       </div>
     </template>
+
+    <ModalDialog v-if="showEdit" title="Edit client" @close="showEdit = false">
+      <div class="field">
+        <label>Client name</label>
+        <input class="input" v-model="editName" @keyup.enter="saveEdit" />
+      </div>
+      <template #footer>
+        <button class="btn" @click="showEdit = false">Cancel</button>
+        <button class="btn btn-primary" :disabled="savingEdit || !editName.trim()" @click="saveEdit">Save</button>
+      </template>
+    </ModalDialog>
   </div>
 </template>
 

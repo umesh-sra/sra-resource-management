@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { projectsApi, resourcesApi } from '@/api'
+import { allocationsApi, projectsApi, resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
-import type { EffortUnit, ProjectDetail, Resource } from '@/types'
+import type { Allocation, EffortUnit, ProjectDetail, ProjectStatus, Resource } from '@/types'
 import { fmtDate, fmtMoney, projectStatus } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import ModalDialog from '@/components/ModalDialog.vue'
+import AllocationEditModal from '@/components/AllocationEditModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,6 +23,60 @@ const form = ref({
   resourceId: '', startDate: '', endDate: '',
   effort: 38, effortUnit: 'hoursPerWeek' as EffortUnit, roleOnProject: '',
 })
+
+const editAlloc = ref<Allocation | null>(null)
+const showEdit = ref(false)
+const savingEdit = ref(false)
+const editForm = ref({
+  name: '', code: '', startDate: '', endDate: '',
+  budget: null as number | null, remaining: null as number | null,
+  billable: true, status: 'active' as ProjectStatus,
+})
+
+const num = (v: unknown) => (v === null || v === undefined || (v as unknown) === '' ? undefined : Number(v))
+
+function openEdit() {
+  const pr = project.value
+  if (!pr) return
+  editForm.value = {
+    name: pr.name, code: pr.code, startDate: pr.startDate, endDate: pr.endDate,
+    budget: pr.budget ?? null, remaining: pr.remaining ?? null,
+    billable: pr.billable, status: pr.status,
+  }
+  showEdit.value = true
+}
+
+async function saveEdit() {
+  if (!project.value) return
+  savingEdit.value = true
+  try {
+    const f = editForm.value
+    await projectsApi.update(project.value.id, {
+      clientId: project.value.clientId,
+      name: f.name, code: f.code, startDate: f.startDate, endDate: f.endDate,
+      budget: num(f.budget), remaining: num(f.remaining),
+      billable: f.billable, status: f.status,
+    })
+    toast.success('Project updated')
+    showEdit.value = false
+    await load()
+  } catch (e) {
+    toast.error(e instanceof ApiError ? e.message : 'Could not update project')
+  } finally {
+    savingEdit.value = false
+  }
+}
+
+async function removeAllocation(a: Allocation) {
+  if (!confirm(`Remove ${a.resourceName} from this project?`)) return
+  try {
+    await allocationsApi.remove(a.id)
+    toast.success('Allocation removed')
+    await load()
+  } catch (e) {
+    toast.error(e instanceof ApiError ? e.message : 'Could not remove allocation')
+  }
+}
 
 async function load() {
   loading.value = true
@@ -98,6 +153,7 @@ onMounted(load)
         </div>
         <div class="row">
           <button class="btn btn-primary" @click="openAdd">+ Allocate resource</button>
+          <button class="btn" @click="openEdit">Edit</button>
           <button class="btn btn-danger" @click="removeProject">Delete</button>
         </div>
       </div>
@@ -113,7 +169,7 @@ onMounted(load)
         <div class="card-pad" style="padding-bottom: 8px"><h2>Team & allocations</h2></div>
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>Resource</th><th>Role</th><th>Dates</th><th class="num">Effort</th><th>Billable</th></tr></thead>
+            <thead><tr><th>Resource</th><th>Role</th><th>Dates</th><th class="num">Effort</th><th>Billable</th><th></th></tr></thead>
             <tbody>
               <tr v-for="a in project.allocations" :key="a.id" class="clickable" @click="router.push(`/resources/${a.resourceId}`)">
                 <td>{{ a.resourceName }}</td>
@@ -121,8 +177,12 @@ onMounted(load)
                 <td>{{ fmtDate(a.startDate) }} – {{ fmtDate(a.endDate) }}</td>
                 <td class="num">{{ a.effort }} {{ a.effortUnit === 'percent' ? '%' : 'h/wk' }}</td>
                 <td><span class="badge" :class="a.billable ? 'green' : 'gray'">{{ a.billable ? 'Billable' : 'Non-billable' }}</span></td>
+                <td class="num" @click.stop>
+                  <button class="btn btn-sm" @click="editAlloc = a">Edit</button>
+                  <button class="btn btn-sm btn-danger" @click="removeAllocation(a)">Remove</button>
+                </td>
               </tr>
-              <tr v-if="!project.allocations.length"><td colspan="5" class="empty">No one allocated yet.</td></tr>
+              <tr v-if="!project.allocations.length"><td colspan="6" class="empty">No one allocated yet.</td></tr>
             </tbody>
           </table>
         </div>
@@ -155,5 +215,44 @@ onMounted(load)
         <button class="btn btn-primary" :disabled="saving || !form.resourceId || !form.startDate || !form.endDate" @click="addAllocation">Allocate</button>
       </template>
     </ModalDialog>
+
+    <ModalDialog v-if="showEdit" title="Edit project" @close="showEdit = false">
+      <div class="form-row">
+        <div class="field"><label>Name</label><input class="input" v-model="editForm.name" /></div>
+        <div class="field"><label>Code</label><input class="input" v-model="editForm.code" /></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Start date</label><input class="input" v-model="editForm.startDate" type="date" /></div>
+        <div class="field"><label>End date</label><input class="input" v-model="editForm.endDate" type="date" /></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Budget</label><input class="input" v-model.number="editForm.budget" type="number" min="0" /></div>
+        <div class="field"><label>Remaining</label><input class="input" v-model.number="editForm.remaining" type="number" min="0" /></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Status</label>
+          <select class="select" v-model="editForm.status">
+            <option value="planned">Planned</option><option value="active">Active</option>
+            <option value="onHold">On hold</option><option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:8px; margin-top: 26px">
+            <input type="checkbox" v-model="editForm.billable" /> Billable
+          </label>
+        </div>
+      </div>
+      <p class="muted" style="font-size: 12.5px">Narrowing the dates is rejected if existing allocations would fall outside the new window.</p>
+      <template #footer>
+        <button class="btn" @click="showEdit = false">Cancel</button>
+        <button class="btn btn-primary" :disabled="savingEdit || !editForm.name.trim() || !editForm.code.trim() || !editForm.startDate || !editForm.endDate" @click="saveEdit">Save</button>
+      </template>
+    </ModalDialog>
+
+    <AllocationEditModal
+      v-if="editAlloc" :allocation="editAlloc"
+      @close="editAlloc = null" @saved="editAlloc = null; load()"
+    />
   </div>
 </template>

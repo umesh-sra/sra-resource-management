@@ -39,7 +39,7 @@ The Dev auth handler currently grants all three roles, so role restrictions are 
 ## Backlog (not yet started)
 
 - [ ] **Gantt UI** (FR-GANTT-*) — surface `/dashboard/gantt` (projects + resources views) in the SPA; the API already returns the data.
-- [ ] **Front-end polish** — edit forms (currently create + delete only), role-aware UI (hide writes for non-admins), reference-data pick-lists in forms, loading/error states pass.
+- [ ] **Front-end polish** — role-aware UI (hide writes for non-admins), reference-data pick-lists in forms, loading/error states pass. (Edit forms for clients/projects/resources/allocations added 2026-07-03.)
 - [ ] **Real Entra ID auth** — both tiers: replace `AzureAd` placeholders + AD group→role mapping (SRS #5) in the API, and attach MSAL bearer tokens in `web/src/api/http.ts`.
 - [ ] **CI** — pipeline to run `dotnet build` + `dotnet test` (Docker available on the runner for integration tests).
 - [ ] **Deployment guide & artifacts** (SRS §7).

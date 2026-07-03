@@ -3,9 +3,10 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
-import type { ResourceDetail } from '@/types'
+import type { ResourceDetail, ResourceStatus } from '@/types'
 import { fmtDate, initials, resourceStatus } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
+import ModalDialog from '@/components/ModalDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +14,53 @@ const toast = useToastStore()
 
 const resource = ref<ResourceDetail | null>(null)
 const loading = ref(true)
+
+const showEdit = ref(false)
+const savingEdit = ref(false)
+const editForm = ref({
+  name: '', email: '', primaryJobTitle: '', secondaryJobTitle: '',
+  availabilityHoursPerWeek: 38, status: 'active' as ResourceStatus,
+  department: '', location: '', skills: '', notes: '',
+})
+
+function openEdit() {
+  const r = resource.value
+  if (!r) return
+  editForm.value = {
+    name: r.name, email: r.email, primaryJobTitle: r.primaryJobTitle,
+    secondaryJobTitle: r.secondaryJobTitle ?? '',
+    availabilityHoursPerWeek: r.availabilityHoursPerWeek, status: r.status,
+    department: r.department ?? '', location: r.location ?? '',
+    skills: r.skills.join(', '), notes: r.notes ?? '',
+  }
+  showEdit.value = true
+}
+
+async function saveEdit() {
+  const r = resource.value
+  if (!r) return
+  savingEdit.value = true
+  try {
+    const f = editForm.value
+    await resourcesApi.update(r.id, {
+      name: f.name, email: f.email, primaryJobTitle: f.primaryJobTitle,
+      secondaryJobTitle: f.secondaryJobTitle || undefined,
+      availabilityHoursPerWeek: Number(f.availabilityHoursPerWeek),
+      status: f.status,
+      department: f.department || undefined, location: f.location || undefined,
+      skills: f.skills.split(',').map((s) => s.trim()).filter(Boolean),
+      notes: f.notes || undefined,
+      workingDays: r.workingDays,
+    })
+    toast.success('Resource updated')
+    showEdit.value = false
+    await load()
+  } catch (e) {
+    toast.error(e instanceof ApiError ? e.message : 'Could not update resource')
+  } finally {
+    savingEdit.value = false
+  }
+}
 
 const utilisation = computed(() => {
   if (!resource.value || resource.value.availabilityHoursPerWeek <= 0) return 0
@@ -67,7 +115,10 @@ onMounted(load)
             </div>
           </div>
         </div>
-        <button class="btn btn-danger" @click="remove">Delete</button>
+        <div class="row">
+          <button class="btn" @click="openEdit">Edit</button>
+          <button class="btn btn-danger" @click="remove">Delete</button>
+        </div>
       </div>
 
       <div class="grid grid-2">
@@ -116,6 +167,36 @@ onMounted(load)
         </div>
       </div>
     </template>
+
+    <ModalDialog v-if="showEdit" title="Edit resource" @close="showEdit = false">
+      <div class="form-row">
+        <div class="field"><label>Name</label><input class="input" v-model="editForm.name" /></div>
+        <div class="field"><label>Email</label><input class="input" v-model="editForm.email" type="email" /></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Primary job title</label><input class="input" v-model="editForm.primaryJobTitle" /></div>
+        <div class="field"><label>Secondary job title</label><input class="input" v-model="editForm.secondaryJobTitle" /></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Availability (h/week)</label><input class="input" v-model.number="editForm.availabilityHoursPerWeek" type="number" min="0" max="168" /></div>
+        <div class="field"><label>Status</label>
+          <select class="select" v-model="editForm.status">
+            <option value="active">Active</option><option value="inactive">Inactive</option>
+            <option value="onLeave">On leave</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Department</label><input class="input" v-model="editForm.department" /></div>
+        <div class="field"><label>Location</label><input class="input" v-model="editForm.location" /></div>
+      </div>
+      <div class="field"><label>Skills (comma-separated)</label><input class="input" v-model="editForm.skills" /></div>
+      <div class="field"><label>Notes</label><input class="input" v-model="editForm.notes" /></div>
+      <template #footer>
+        <button class="btn" @click="showEdit = false">Cancel</button>
+        <button class="btn btn-primary" :disabled="savingEdit || !editForm.name.trim() || !editForm.email.trim() || !editForm.primaryJobTitle.trim()" @click="saveEdit">Save</button>
+      </template>
+    </ModalDialog>
   </div>
 </template>
 

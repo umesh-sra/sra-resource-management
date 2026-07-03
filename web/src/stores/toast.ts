@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 export interface Toast {
   id: number
   message: string
-  kind: 'info' | 'success' | 'error'
+  kind: 'info' | 'success' | 'error' | 'warning'
 }
 
 let nextId = 1
@@ -14,9 +14,10 @@ export const useToastStore = defineStore('toast', {
     push(message: string, kind: Toast['kind'] = 'info') {
       const id = nextId++
       this.toasts.push({ id, message, kind })
-      setTimeout(() => this.dismiss(id), kind === 'error' ? 6000 : 3500)
+      setTimeout(() => this.dismiss(id), kind === 'error' ? 6000 : kind === 'warning' ? 5000 : 3500)
     },
     success(message: string) { this.push(message, 'success') },
+    warning(message: string) { this.push(message, 'warning') },
     error(message: string) { this.push(message, 'error') },
     dismiss(id: number) { this.toasts = this.toasts.filter((t) => t.id !== id) },
   },
