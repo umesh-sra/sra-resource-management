@@ -88,7 +88,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseStaticFiles(); // serves uploaded resource images under wwwroot/uploads
+// NB: no UseStaticFiles — uploaded profile images contain personal data
+// (NFR-SEC-5) and are served only via the authorized
+// GET /v1/resources/{id}/image endpoint.
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

@@ -432,11 +432,33 @@ paths:
   /resources/{resourceId}/image:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Resources]
+      summary: Get a resource profile image
+      operationId: getResourceImage
+      description: >-
+        Roles - Administrator, General. Profile images contain personal data
+        (NFR-SEC-5) and are served only through this authenticated endpoint;
+        they are not available as anonymous static files.
+      responses:
+        '200':
+          description: The image bytes.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Resources]
       summary: Upload a resource profile image
       operationId: uploadResourceImage
-      description: Roles - Administrator.
+      description: >-
+        Roles - Administrator. Maximum size 5 MB; the body must match the
+        declared content type's file signature. The stored image is exposed at
+        GET /resources/{resourceId}/image (the Resource's imageUrl).
       requestBody:
         required: true
         content:

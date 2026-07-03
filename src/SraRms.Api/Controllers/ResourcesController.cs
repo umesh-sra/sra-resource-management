@@ -157,10 +157,46 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
         return NoContent();
     }
 
+    private const long MaxImageBytes = 5 * 1024 * 1024; // 5 MB
+
+    private string UploadsDir()
+    {
+        var root = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");
+        return Path.Combine(root, "uploads", "resources");
+    }
+
+    // Magic-byte check so a renamed non-image can't be stored (NFR-SEC-4).
+    private static bool MatchesSignature(byte[] bytes, string ext) => ext switch
+    {
+        "png" => bytes.Length >= 8
+                 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47,
+        _ => bytes.Length >= 3
+                 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF,
+    };
+
+    // GET /resources/{resourceId}/image
+    // Profile images are personal data (NFR-SEC-5): served only through this
+    // authorized endpoint, never as anonymous static files.
+    [HttpGet("{resourceId:guid}/image")]
+    [Authorize(Policy = Policies.Read)]
+    public async Task<IActionResult> GetImage(Guid resourceId, CancellationToken ct)
+    {
+        if (!await db.Resources.AnyAsync(r => r.Id == resourceId, ct))
+            return NotFoundProblem($"Resource {resourceId} not found.");
+
+        var png = Path.Combine(UploadsDir(), $"{resourceId}.png");
+        if (System.IO.File.Exists(png)) return PhysicalFile(png, "image/png");
+        var jpg = Path.Combine(UploadsDir(), $"{resourceId}.jpg");
+        if (System.IO.File.Exists(jpg)) return PhysicalFile(jpg, "image/jpeg");
+
+        return NotFoundProblem($"Resource {resourceId} has no profile image.");
+    }
+
     // PUT /resources/{resourceId}/image
     [HttpPut("{resourceId:guid}/image")]
     [Authorize(Policy = Policies.Admin)]
     [Consumes("image/png", "image/jpeg")]
+    [RequestSizeLimit(MaxImageBytes)]
     public async Task<ActionResult<ResourceDto>> UploadImage(Guid resourceId, CancellationToken ct)
     {
         var resource = await db.Resources.FirstOrDefaultAsync(r => r.Id == resourceId, ct);
@@ -171,15 +207,34 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
             : contentType.Contains("jpeg", StringComparison.OrdinalIgnoreCase) ? "jpg"
             : null;
         if (ext is null) return BadRequestProblem("Content-Type must be image/png or image/jpeg.");
+        if (Request.ContentLength is > MaxImageBytes)
+            return BadRequestProblem($"Image exceeds the {MaxImageBytes / (1024 * 1024)} MB limit.");
 
-        var root = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");
-        var dir = Path.Combine(root, "uploads", "resources");
-        Directory.CreateDirectory(dir);
-        var fileName = $"{resourceId}.{ext}";
-        await using (var fs = System.IO.File.Create(Path.Combine(dir, fileName)))
-            await Request.Body.CopyToAsync(fs, ct);
+        // Buffer with a hard cap (ContentLength can be absent or wrong for
+        // chunked bodies), then verify the file signature before storing.
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = await Request.Body.ReadAsync(buffer, ct)) > 0)
+        {
+            total += read;
+            if (total > MaxImageBytes)
+                return BadRequestProblem($"Image exceeds the {MaxImageBytes / (1024 * 1024)} MB limit.");
+            ms.Write(buffer, 0, read);
+        }
+        var bytes = ms.ToArray();
+        if (!MatchesSignature(bytes, ext))
+            return BadRequestProblem("File content does not match the declared image type.");
 
-        resource.ImageUrl = $"/uploads/resources/{fileName}";
+        Directory.CreateDirectory(UploadsDir());
+        await System.IO.File.WriteAllBytesAsync(Path.Combine(UploadsDir(), $"{resourceId}.{ext}"), bytes, ct);
+
+        // Replacing e.g. a png with a jpg must not leave the old file behind.
+        var stale = Path.Combine(UploadsDir(), $"{resourceId}.{(ext == "png" ? "jpg" : "png")}");
+        if (System.IO.File.Exists(stale)) System.IO.File.Delete(stale);
+
+        resource.ImageUrl = $"/v1/resources/{resourceId}/image";
         await db.SaveChangesAsync(ct);
         return Ok(resource.ToDto());
     }
