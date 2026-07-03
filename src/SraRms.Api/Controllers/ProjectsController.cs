@@ -129,6 +129,29 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             && !await db.Clients.AnyAsync(c => c.Id == body.ClientId, ct))
             return BadRequestProblem($"Client {body.ClientId} does not exist.");
 
+        // SRS §3.5 / FR-ALL-5: narrowing the project window must not strand
+        // existing allocations outside it. Reject with 409 so the caller adjusts
+        // or deletes the offending allocations first (or widens the dates).
+        if (body.StartDate > project.StartDate || body.EndDate < project.EndDate)
+        {
+            var stranded = await db.Allocations.AsNoTracking()
+                .Where(a => a.ProjectId == projectId
+                            && (a.StartDate < body.StartDate || a.EndDate > body.EndDate))
+                .OrderBy(a => a.StartDate)
+                .Select(a => new { a.Id, a.StartDate, a.EndDate, ResourceName = a.Resource!.Name })
+                .ToListAsync(ct);
+            if (stranded.Count > 0)
+            {
+                var sample = string.Join("; ", stranded.Take(5)
+                    .Select(a => $"{a.ResourceName} {a.StartDate:yyyy-MM-dd}..{a.EndDate:yyyy-MM-dd} ({a.Id})"));
+                var more = stranded.Count > 5 ? $"; and {stranded.Count - 5} more" : "";
+                return ConflictProblem(
+                    $"{stranded.Count} allocation(s) fall outside the new project window "
+                    + $"{body.StartDate:yyyy-MM-dd}..{body.EndDate:yyyy-MM-dd}: {sample}{more}. "
+                    + "Adjust or delete these allocations first, or widen the project dates.");
+            }
+        }
+
         project.Name = body.Name;
         project.Code = body.Code;
         if (body.ClientId is not null) project.ClientId = body.ClientId.Value;

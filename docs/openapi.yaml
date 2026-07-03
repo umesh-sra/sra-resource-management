@@ -233,7 +233,10 @@ paths:
       tags: [Projects]
       summary: Update a project
       operationId: updateProject
-      description: Roles - Administrator.
+      description: >-
+        Roles - Administrator. Fails with 409 if the project code is already in
+        use, or if narrowing the date window would leave existing allocations
+        outside it (adjust or delete those allocations first).
       requestBody:
         required: true
         content:
