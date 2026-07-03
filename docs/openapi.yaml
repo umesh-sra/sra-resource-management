@@ -1,0 +1,1243 @@
+openapi: 3.1.0
+info:
+  title: SRA Resource Management System API
+  version: 1.0.0
+  description: >
+    Business-layer API for the SRA Resource Management System (SRA-RMS).
+    Provides CRUD over Clients, Projects, Resources, and Allocations, plus
+    dashboard and reporting endpoints. Authentication is delegated to
+    Microsoft Active Directory (OAuth2 / OpenID Connect); authorization is
+    role-based (Administrator, General, Report).
+  contact:
+    name: SRA
+    email: umesh.kodippili@sra.com.au
+  license:
+    name: Proprietary - SRA
+
+servers:
+  - url: https://api.rms.sra.com.au/v1
+    description: Production
+  - url: https://api.staging.rms.sra.com.au/v1
+    description: Staging
+  - url: http://localhost:5000/v1
+    description: Local development
+
+security:
+  - oauth2: []
+
+tags:
+  - name: Clients
+  - name: Projects
+  - name: Resources
+  - name: Allocations
+  - name: Dashboard
+  - name: Reports
+  - name: Reference data
+
+paths:
+  # ---------------- Clients ----------------
+  /clients:
+    get:
+      tags: [Clients]
+      summary: List clients
+      operationId: listClients
+      description: Roles - Administrator, General.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: A paged list of clients.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientPage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Clients]
+      summary: Create a client
+      operationId: createClient
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientCreate' }
+      responses:
+        '201':
+          description: Client created.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /clients/{clientId}:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+    get:
+      tags: [Clients]
+      summary: Get a client
+      operationId: getClient
+      description: Roles - Administrator, General. Includes projects and aggregated team.
+      responses:
+        '200':
+          description: The client.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Clients]
+      summary: Update a client
+      operationId: updateClient
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientUpdate' }
+      responses:
+        '200':
+          description: Client updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Clients]
+      summary: Delete a client
+      operationId: deleteClient
+      description: >
+        Roles - Administrator. Fails with 409 if the client has projects,
+        unless cascade=true is supplied.
+      parameters:
+        - $ref: '#/components/parameters/Cascade'
+      responses:
+        '204': { description: Client deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /clients/{clientId}/projects:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+    get:
+      tags: [Clients]
+      summary: List a client's projects
+      operationId: listClientProjects
+      description: Roles - Administrator, General.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A paged list of the client's projects.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------- Projects ----------------
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      operationId: listProjects
+      description: Roles - Administrator, General.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: billable
+          in: query
+          schema: { type: boolean }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ProjectStatus' }
+        - name: startsAfter
+          in: query
+          schema: { type: string, format: date }
+        - name: endsBefore
+          in: query
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: A paged list of projects.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Projects]
+      summary: Create a project
+      operationId: createProject
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectCreate' }
+      responses:
+        '201':
+          description: Project created.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Projects]
+      summary: Get a project
+      operationId: getProject
+      description: Roles - Administrator, General. Includes allocated resources.
+      responses:
+        '200':
+          description: The project.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Projects]
+      summary: Update a project
+      operationId: updateProject
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectUpdate' }
+      responses:
+        '200':
+          description: Project updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Projects]
+      summary: Delete a project
+      operationId: deleteProject
+      description: >
+        Roles - Administrator. Fails with 409 if the project has allocations,
+        unless cascade=true is supplied.
+      parameters:
+        - $ref: '#/components/parameters/Cascade'
+      responses:
+        '204': { description: Project deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /projects/{projectId}/allocations:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Projects]
+      summary: List a project's allocations
+      operationId: listProjectAllocations
+      description: Roles - Administrator, General.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A paged list of the project's allocations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Projects]
+      summary: Allocate a resource to this project
+      operationId: createProjectAllocation
+      description: >
+        Roles - Administrator. Validates allocation dates against the project
+        window and warns (via warnings array on 201) on over-allocation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AllocationCreate' }
+      responses:
+        '201':
+          description: Allocation created.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Allocation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ---------------- Resources ----------------
+  /resources:
+    get:
+      tags: [Resources]
+      summary: List resources
+      operationId: listResources
+      description: Roles - Administrator, General. Supports skill/department/location/status filters.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - name: skill
+          in: query
+          description: Filter by one or more skill tags (AND semantics).
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+        - name: department
+          in: query
+          schema: { type: string }
+        - name: location
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ResourceStatus' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: A paged list of resources.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResourcePage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Resources]
+      summary: Create a resource
+      operationId: createResource
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResourceCreate' }
+      responses:
+        '201':
+          description: Resource created.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Resource' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /resources/{resourceId}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Resources]
+      summary: Get a resource
+      operationId: getResource
+      description: Roles - Administrator, General. Includes current and historical allocations.
+      responses:
+        '200':
+          description: The resource.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResourceDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Resources]
+      summary: Update a resource
+      operationId: updateResource
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResourceUpdate' }
+      responses:
+        '200':
+          description: Resource updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Resource' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Resources]
+      summary: Delete a resource
+      operationId: deleteResource
+      description: >
+        Roles - Administrator. Fails with 409 if the resource has allocations,
+        unless cascade=true is supplied.
+      parameters:
+        - $ref: '#/components/parameters/Cascade'
+      responses:
+        '204': { description: Resource deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /resources/{resourceId}/image:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [Resources]
+      summary: Upload a resource profile image
+      operationId: uploadResourceImage
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Image stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Resource' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /resources/{resourceId}/allocations:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Resources]
+      summary: List a resource's allocations
+      operationId: listResourceAllocations
+      description: Roles - Administrator, General.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A paged list of the resource's allocations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------- Allocations ----------------
+  /allocations:
+    get:
+      tags: [Allocations]
+      summary: List allocations
+      operationId: listAllocations
+      description: Roles - Administrator, General. Filter by project, resource, or date range.
+      parameters:
+        - name: projectId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: A paged list of allocations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Allocations]
+      summary: Create an allocation
+      operationId: createAllocation
+      description: >
+        Roles - Administrator. projectId and resourceId are supplied in the body.
+        Validates dates against the project window; over-allocation returns
+        warnings on the created object.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AllocationCreateFull' }
+      responses:
+        '201':
+          description: Allocation created.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Allocation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /allocations/{allocationId}:
+    parameters:
+      - $ref: '#/components/parameters/AllocationId'
+    get:
+      tags: [Allocations]
+      summary: Get an allocation
+      operationId: getAllocation
+      description: Roles - Administrator, General.
+      responses:
+        '200':
+          description: The allocation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Allocation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Allocations]
+      summary: Update an allocation
+      operationId: updateAllocation
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AllocationUpdate' }
+      responses:
+        '200':
+          description: Allocation updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Allocation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Allocations]
+      summary: Delete an allocation
+      operationId: deleteAllocation
+      description: Roles - Administrator.
+      responses:
+        '204': { description: Allocation deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------- Dashboard ----------------
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Dashboard headline metrics
+      operationId: getDashboardSummary
+      description: Roles - Administrator, General.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Dashboard summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /dashboard/gantt:
+    get:
+      tags: [Dashboard]
+      summary: Gantt data for projects and/or resources
+      operationId: getGantt
+      description: Roles - Administrator, General.
+      parameters:
+        - name: view
+          in: query
+          required: true
+          schema: { type: string, enum: [projects, resources] }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: department
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Gantt rows for the requested view and window.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GanttResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------- Reports ----------------
+  /reports/utilisation:
+    get:
+      tags: [Reports]
+      summary: Resource utilisation report
+      operationId: getUtilisationReport
+      description: Roles - Report.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: department
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/ReportFormat'
+      responses:
+        '200':
+          description: Utilisation report (JSON or CSV per format).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UtilisationReport' }
+            text/csv:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /reports/allocation:
+    get:
+      tags: [Reports]
+      summary: Allocation report by project and resource
+      operationId: getAllocationReport
+      description: Roles - Report.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/ReportFormat'
+      responses:
+        '200':
+          description: Allocation report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationReport' }
+            text/csv:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /reports/budget:
+    get:
+      tags: [Reports]
+      summary: Budget consumption report
+      operationId: getBudgetReport
+      description: Roles - Report.
+      parameters:
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/ReportFormat'
+      responses:
+        '200':
+          description: Budget consumption report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BudgetReport' }
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------- Reference data ----------------
+  /reference/{collection}:
+    parameters:
+      - name: collection
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [departments, locations, jobTitles, skills, resourceStatuses]
+    get:
+      tags: [Reference data]
+      summary: List reference data values
+      operationId: listReferenceData
+      description: Roles - Administrator, General.
+      responses:
+        '200':
+          description: Reference data values.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReferenceItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Reference data]
+      summary: Add a reference data value
+      operationId: createReferenceData
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReferenceItemCreate' }
+      responses:
+        '201':
+          description: Reference value created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReferenceItem' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: Microsoft Active Directory / Entra ID (OpenID Connect).
+      flows:
+        authorizationCode:
+          authorizationUrl: https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+          tokenUrl: https://login.microsoftonline.com/common/oauth2/v2.0/token
+          scopes:
+            api://sra-rms/access_as_user: Access the SRA-RMS API as the signed-in user.
+
+  headers:
+    Location:
+      description: URI of the newly created resource.
+      schema: { type: string, format: uri }
+
+  parameters:
+    Search:
+      name: q
+      in: query
+      description: Free-text search term.
+      schema: { type: string }
+    Page:
+      name: page
+      in: query
+      description: 1-based page number.
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      description: Items per page.
+      schema: { type: integer, minimum: 1, maximum: 200, default: 25 }
+    Sort:
+      name: sort
+      in: query
+      description: 'Sort expression, e.g. "name" or "-startDate" (prefix - for descending).'
+      schema: { type: string }
+    Cascade:
+      name: cascade
+      in: query
+      description: If true, delete dependents instead of returning 409.
+      schema: { type: boolean, default: false }
+    ReportFormat:
+      name: format
+      in: query
+      description: Output format.
+      schema: { type: string, enum: [json, csv], default: json }
+    ClientId:
+      name: clientId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ResourceId:
+      name: resourceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AllocationId:
+      name: allocationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: The request was invalid.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Authentication is required or has failed.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: The authenticated user lacks the required role.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: The request conflicts with the current state (e.g. duplicate or dependents exist).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    PageMeta:
+      type: object
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+
+    # ---- Enums ----
+    ProjectStatus:
+      type: string
+      enum: [planned, active, onHold, completed, cancelled]
+    ResourceStatus:
+      type: string
+      enum: [active, inactive, onLeave]
+    DayOfWeek:
+      type: string
+      enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+    EffortUnit:
+      type: string
+      enum: [hoursPerWeek, percent]
+
+    # ---- Client ----
+    ClientBase:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+    ClientCreate:
+      allOf:
+        - $ref: '#/components/schemas/ClientBase'
+        - type: object
+          required: [name]
+    ClientUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ClientBase'
+        - type: object
+          required: [name]
+    Client:
+      allOf:
+        - $ref: '#/components/schemas/ClientBase'
+        - type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            projectCount: { type: integer }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    ClientDetail:
+      allOf:
+        - $ref: '#/components/schemas/Client'
+        - type: object
+          properties:
+            projects:
+              type: array
+              items: { $ref: '#/components/schemas/Project' }
+            team:
+              type: array
+              description: Distinct resources allocated across the client's projects.
+              items: { $ref: '#/components/schemas/ResourceSummary' }
+    ClientPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Client' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ---- Project ----
+    ProjectBase:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        code: { type: string, minLength: 1, maxLength: 50 }
+        clientId: { type: string, format: uuid }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        budget: { type: number, format: double, minimum: 0 }
+        remaining: { type: number, format: double, minimum: 0 }
+        billable: { type: boolean, default: true }
+        status: { $ref: '#/components/schemas/ProjectStatus' }
+    ProjectCreate:
+      allOf:
+        - $ref: '#/components/schemas/ProjectBase'
+        - type: object
+          required: [name, code, clientId, startDate, endDate]
+    ProjectUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ProjectBase'
+        - type: object
+          required: [name, code, startDate, endDate]
+    Project:
+      allOf:
+        - $ref: '#/components/schemas/ProjectBase'
+        - type: object
+          required: [id, name, code, clientId, startDate, endDate]
+          properties:
+            id: { type: string, format: uuid }
+            clientName: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          properties:
+            allocations:
+              type: array
+              items: { $ref: '#/components/schemas/Allocation' }
+    ProjectPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Project' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ---- Resource ----
+    ResourceBase:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        email: { type: string, format: email }
+        primaryJobTitle: { type: string }
+        secondaryJobTitle: { type: string }
+        status: { $ref: '#/components/schemas/ResourceStatus' }
+        department: { type: string }
+        location: { type: string }
+        notes: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        availabilityHoursPerWeek: { type: number, format: double, minimum: 0, maximum: 168 }
+        workingDays:
+          type: array
+          items: { $ref: '#/components/schemas/DayOfWeek' }
+    ResourceCreate:
+      allOf:
+        - $ref: '#/components/schemas/ResourceBase'
+        - type: object
+          required: [name, email, primaryJobTitle, availabilityHoursPerWeek]
+    ResourceUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ResourceBase'
+        - type: object
+          required: [name, email, primaryJobTitle, availabilityHoursPerWeek]
+    Resource:
+      allOf:
+        - $ref: '#/components/schemas/ResourceBase'
+        - type: object
+          required: [id, name, email]
+          properties:
+            id: { type: string, format: uuid }
+            imageUrl: { type: string, format: uri }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    ResourceSummary:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        primaryJobTitle: { type: string }
+        imageUrl: { type: string, format: uri }
+    ResourceDetail:
+      allOf:
+        - $ref: '#/components/schemas/Resource'
+        - type: object
+          properties:
+            allocations:
+              type: array
+              items: { $ref: '#/components/schemas/Allocation' }
+            allocatedHoursPerWeek:
+              type: number
+              format: double
+              description: Sum of current allocations' effort in hours/week.
+    ResourcePage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Resource' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ---- Allocation ----
+    AllocationBase:
+      type: object
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        effort: { type: number, format: double, minimum: 0 }
+        effortUnit: { $ref: '#/components/schemas/EffortUnit' }
+        roleOnProject: { type: string }
+        billable: { type: boolean }
+    AllocationCreate:
+      description: Used when the project is known from the path.
+      allOf:
+        - $ref: '#/components/schemas/AllocationBase'
+        - type: object
+          required: [resourceId, startDate, endDate, effort, effortUnit]
+          properties:
+            resourceId: { type: string, format: uuid }
+    AllocationCreateFull:
+      description: Used on the top-level /allocations endpoint.
+      allOf:
+        - $ref: '#/components/schemas/AllocationBase'
+        - type: object
+          required: [projectId, resourceId, startDate, endDate, effort, effortUnit]
+          properties:
+            projectId: { type: string, format: uuid }
+            resourceId: { type: string, format: uuid }
+    AllocationUpdate:
+      allOf:
+        - $ref: '#/components/schemas/AllocationBase'
+        - type: object
+          required: [startDate, endDate, effort, effortUnit]
+    Allocation:
+      allOf:
+        - $ref: '#/components/schemas/AllocationBase'
+        - type: object
+          required: [id, projectId, resourceId, startDate, endDate, effort, effortUnit]
+          properties:
+            id: { type: string, format: uuid }
+            projectId: { type: string, format: uuid }
+            projectName: { type: string }
+            resourceId: { type: string, format: uuid }
+            resourceName: { type: string }
+            warnings:
+              type: array
+              description: Non-blocking validation warnings, e.g. over-allocation.
+              items: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    AllocationPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Allocation' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    # ---- Dashboard ----
+    DashboardSummary:
+      type: object
+      properties:
+        activeProjects: { type: integer }
+        totalResources: { type: integer }
+        averageUtilisation: { type: number, format: double, description: 'Fraction 0..1.' }
+        overAllocatedResources: { type: integer }
+        underAllocatedResources: { type: integer }
+        budgetAtRisk: { type: number, format: double }
+        upcomingProjectStarts:
+          type: array
+          items: { $ref: '#/components/schemas/Project' }
+        upcomingRollOffs:
+          type: array
+          items: { $ref: '#/components/schemas/Allocation' }
+
+    GanttResponse:
+      type: object
+      required: [view, from, to, rows]
+      properties:
+        view: { type: string, enum: [projects, resources] }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/GanttRow' }
+    GanttRow:
+      type: object
+      required: [id, label, bars]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        bars:
+          type: array
+          items: { $ref: '#/components/schemas/GanttBar' }
+    GanttBar:
+      type: object
+      required: [start, end]
+      properties:
+        refId: { type: string, format: uuid }
+        label: { type: string }
+        start: { type: string, format: date }
+        end: { type: string, format: date }
+        effort: { type: number, format: double }
+        overAllocated: { type: boolean }
+
+    # ---- Reports ----
+    UtilisationReport:
+      type: object
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              resourceId: { type: string, format: uuid }
+              resourceName: { type: string }
+              department: { type: string }
+              availableHours: { type: number, format: double }
+              allocatedHours: { type: number, format: double }
+              utilisation: { type: number, format: double }
+    AllocationReport:
+      type: object
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              projectId: { type: string, format: uuid }
+              projectName: { type: string }
+              clientName: { type: string }
+              resourceId: { type: string, format: uuid }
+              resourceName: { type: string }
+              allocatedHours: { type: number, format: double }
+              billable: { type: boolean }
+    BudgetReport:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              clientName: { type: string }
+              projectId: { type: string, format: uuid }
+              projectName: { type: string }
+              budget: { type: number, format: double }
+              remaining: { type: number, format: double }
+              consumed: { type: number, format: double }
+              percentConsumed: { type: number, format: double }
+
+    # ---- Reference data ----
+    ReferenceItem:
+      type: object
+      required: [id, value]
+      properties:
+        id: { type: string, format: uuid }
+        value: { type: string }
+        active: { type: boolean, default: true }
+    ReferenceItemCreate:
+      type: object
+      required: [value]
+      properties:
+        value: { type: string, minLength: 1 }

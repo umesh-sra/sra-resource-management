@@ -1,0 +1,22 @@
+# .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+
+# Local development settings contain the local DB password — keep them out of git.
+appsettings.Development.json
+
+# Uploaded files
+src/SraRms.Api/wwwroot/uploads/
+
+# Front end (web/)
+node_modules/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+
+# IDE
+.vs/
+.idea/

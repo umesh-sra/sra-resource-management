@@ -1,0 +1,129 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { resourcesApi } from '@/api'
+import { ApiError } from '@/api/http'
+import type { ResourceDetail } from '@/types'
+import { fmtDate, initials, resourceStatus } from '@/lib/format'
+import { useToastStore } from '@/stores/toast'
+
+const route = useRoute()
+const router = useRouter()
+const toast = useToastStore()
+
+const resource = ref<ResourceDetail | null>(null)
+const loading = ref(true)
+
+const utilisation = computed(() => {
+  if (!resource.value || resource.value.availabilityHoursPerWeek <= 0) return 0
+  return resource.value.allocatedHoursPerWeek / resource.value.availabilityHoursPerWeek
+})
+const over = computed(() => utilisation.value > 1)
+
+async function load() {
+  loading.value = true
+  try {
+    resource.value = await resourcesApi.get(route.params.id as string)
+  } catch (e) {
+    toast.error(e instanceof ApiError ? e.message : 'Failed to load resource')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function remove() {
+  if (!resource.value) return
+  const hasAllocs = resource.value.allocations.length > 0
+  if (!confirm(hasAllocs
+    ? `Delete ${resource.value.name} and their ${resource.value.allocations.length} allocation(s)?`
+    : `Delete ${resource.value.name}?`)) return
+  try {
+    await resourcesApi.remove(resource.value.id, hasAllocs)
+    toast.success('Resource deleted')
+    router.push('/resources')
+  } catch (e) {
+    toast.error(e instanceof ApiError ? e.message : 'Could not delete resource')
+  }
+}
+
+onMounted(load)
+</script>
+
+<template>
+  <div class="page">
+    <div v-if="loading" class="card card-pad"><div class="skeleton" style="height: 60px" /></div>
+
+    <template v-else-if="resource">
+      <div class="page-header">
+        <div>
+          <RouterLink to="/resources" class="muted">← Resources</RouterLink>
+          <div class="row" style="gap: 12px; margin-top: 6px">
+            <span class="big-avatar">{{ initials(resource.name) }}</span>
+            <div>
+              <h1>{{ resource.name }}</h1>
+              <div class="subtitle">
+                {{ resource.primaryJobTitle }}<span v-if="resource.secondaryJobTitle"> · {{ resource.secondaryJobTitle }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-danger" @click="remove">Delete</button>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card card-pad">
+          <h2>Profile</h2>
+          <dl class="defs">
+            <div><dt>Email</dt><dd>{{ resource.email }}</dd></div>
+            <div><dt>Status</dt><dd><span class="badge" :class="resourceStatus(resource.status).class">{{ resourceStatus(resource.status).label }}</span></dd></div>
+            <div><dt>Department</dt><dd>{{ resource.department ?? '—' }}</dd></div>
+            <div><dt>Location</dt><dd>{{ resource.location ?? '—' }}</dd></div>
+            <div><dt>Working days</dt><dd>{{ resource.workingDays.length ? resource.workingDays.join(', ') : '—' }}</dd></div>
+            <div><dt>Skills</dt><dd><span v-for="s in resource.skills" :key="s" class="chip">{{ s }}</span><span v-if="!resource.skills.length">—</span></dd></div>
+          </dl>
+        </div>
+
+        <div class="card card-pad">
+          <h2>Capacity</h2>
+          <div class="cap-num" :style="{ color: over ? 'var(--red-600)' : 'var(--brand-800)' }">
+            {{ resource.allocatedHoursPerWeek }} / {{ resource.availabilityHoursPerWeek }} h&nbsp;<span class="muted" style="font-size:14px">per week</span>
+          </div>
+          <div class="ubar" :class="{ over }" style="margin: 12px 0 8px">
+            <span :style="{ width: Math.min(utilisation * 100, 100) + '%' }" />
+          </div>
+          <div :class="over ? 'warn-text' : 'muted'">
+            {{ Math.round(utilisation * 100) }}% utilised<span v-if="over"> — over-allocated</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-pad" style="padding-bottom: 8px"><h2>Allocations</h2></div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Project</th><th>Role</th><th>Dates</th><th class="num">Effort</th><th>Billable</th></tr></thead>
+            <tbody>
+              <tr v-for="a in resource.allocations" :key="a.id" class="clickable" @click="router.push(`/projects/${a.projectId}`)">
+                <td>{{ a.projectName }}</td>
+                <td>{{ a.roleOnProject ?? '—' }}</td>
+                <td>{{ fmtDate(a.startDate) }} – {{ fmtDate(a.endDate) }}</td>
+                <td class="num">{{ a.effort }} {{ a.effortUnit === 'percent' ? '%' : 'h/wk' }}</td>
+                <td><span class="badge" :class="a.billable ? 'green' : 'gray'">{{ a.billable ? 'Billable' : 'Non-billable' }}</span></td>
+              </tr>
+              <tr v-if="!resource.allocations.length"><td colspan="5" class="empty">No allocations.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.big-avatar { width: 52px; height: 52px; border-radius: 50%; background: var(--brand-100); color: var(--brand-700); display: grid; place-items: center; font-weight: 700; font-size: 18px; }
+.defs { display: grid; gap: 10px; margin: 12px 0 0; }
+.defs > div { display: grid; grid-template-columns: 130px 1fr; align-items: start; }
+.defs dt { color: var(--text-muted); font-size: 13px; }
+.defs dd { margin: 0; }
+.cap-num { font-size: 26px; font-weight: 680; margin-top: 10px; }
+</style>
