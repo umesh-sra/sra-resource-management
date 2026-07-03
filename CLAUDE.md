@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-This is a **pre-implementation repository**. It currently contains only specification, design, and brand artifacts — there is no application source code, build tooling, or tests yet. When asked to "build" or "implement" something, you are scaffolding the system for the first time; follow the contracts and constraints defined in the documents below rather than inferring them from existing code.
+All three tiers are **implemented and working**: the .NET 9 API (`src/SraRms.Api`) covers every endpoint in `docs/openapi.yaml`, the Vue SPA (`web/`) covers the core screens, the initial schema and dev seed are in `db/`, and unit + integration tests pass in `tests/SraRms.Api.Tests`. When asked to build something, extend the existing code — do not re-scaffold. `TODO.md` is the living backlog (remaining features, test gaps, open questions); `docs/Review-2026-07-03.md` holds the latest code-review findings.
 
 The system is the **SRA Resource Management System (SRA-RMS)** — a web app for SRA (a custom software company) to manage clients, projects, resources (people), and the allocation of resources to projects, with a dashboard, Gantt visualisation, and reporting.
 

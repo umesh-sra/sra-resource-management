@@ -9,7 +9,11 @@ const toast = useToastStore()
 const report = ref<UtilisationReport | null>(null)
 const loading = ref(false)
 
-const iso = (d: Date) => d.toISOString().slice(0, 10)
+// Format in local time. toISOString() converts to UTC, which shifts local
+// midnight to the previous day in UTC+ timezones (e.g. Australia/Sydney),
+// making the default range off by one day.
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const today = new Date()
 const from = ref(iso(new Date(today.getFullYear(), today.getMonth(), 1)))
 const to = ref(iso(new Date(today.getFullYear(), today.getMonth() + 6, 0)))

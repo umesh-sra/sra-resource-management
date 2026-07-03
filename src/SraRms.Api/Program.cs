@@ -25,7 +25,12 @@ builder.Services.AddScoped<AllocationService>();
 // ---------------------------------------------------------------------------
 // MVC + JSON: enums serialise as the OpenAPI camelCase tokens.
 // ---------------------------------------------------------------------------
-builder.Services.AddControllers()
+builder.Services.AddControllers(o =>
+    {
+        // Concurrent duplicate inserts race past the controllers' AnyAsync
+        // checks; map the resulting Postgres 23505 to the contract's 409.
+        o.Filters.Add<SraRms.Api.Filters.UniqueViolationExceptionFilter>();
+    })
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.CamelCase));
@@ -70,6 +75,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// RFC 9457 problem+json for unhandled exceptions (500) and bodyless status
+// codes produced by middleware (e.g. 401/403 from authn/authz), per the
+// error contract in docs/openapi.yaml.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {

@@ -143,6 +143,16 @@ public class ReportsController(AppDbContext db) : BaseApiController
 
     private static string Escape(string field)
     {
+        // Formula-injection guard (OWASP CSV injection): a user-supplied name like
+        // "=HYPERLINK(...)" would execute when the export is opened in Excel.
+        // Prefix cells starting with a formula trigger with a quote — except
+        // plain numbers, which legitimately start with '-'.
+        if (field.Length > 0 && field[0] is '=' or '+' or '-' or '@' or '\t' or '\r'
+            && !double.TryParse(field, NumberStyles.Any, CultureInfo.InvariantCulture, out _))
+        {
+            field = "'" + field;
+        }
+
         if (field.Contains(',') || field.Contains('"') || field.Contains('\n'))
             return $"\"{field.Replace("\"", "\"\"")}\"";
         return field;
