@@ -8,11 +8,11 @@ const to = () => Math.min(props.meta.page * props.meta.pageSize, props.meta.tota
 </script>
 
 <template>
-  <div class="row" style="padding: 12px 14px; border-top: 1px solid var(--border);">
+  <nav class="row" aria-label="Pagination" style="padding: 12px 14px; border-top: 1px solid var(--border);">
     <span class="muted">{{ from() }}–{{ to() }} of {{ meta.totalItems }}</span>
     <div class="spacer" />
-    <button class="btn btn-sm" :disabled="meta.page <= 1" @click="emit('change', meta.page - 1)">Prev</button>
+    <button class="btn btn-sm" :disabled="meta.page <= 1" @click="emit('change', meta.page - 1)">Previous<span class="sr-only"> page</span></button>
     <span class="muted">Page {{ meta.page }} / {{ Math.max(meta.totalPages, 1) }}</span>
-    <button class="btn btn-sm" :disabled="meta.page >= meta.totalPages" @click="emit('change', meta.page + 1)">Next</button>
-  </div>
+    <button class="btn btn-sm" :disabled="meta.page >= meta.totalPages" @click="emit('change', meta.page + 1)">Next<span class="sr-only"> page</span></button>
+  </nav>
 </template>

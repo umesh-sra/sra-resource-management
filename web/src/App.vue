@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import ToastHost from '@/components/ToastHost.vue'
 
 const route = useRoute()
 const pageTitle = computed(() => (route.meta.title as string) ?? 'SRA-RMS')
+
+// After client-side navigation, move focus to the main landmark so keyboard
+// and screen-reader users land on the new page content (WCAG 2.4.3).
+const mainEl = ref<HTMLElement | null>(null)
+watch(
+  () => route.path,
+  () => { mainEl.value?.focus() },
+)
 
 const nav = [
   { to: '/dashboard', label: 'Dashboard', icon: 'M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z' },
@@ -18,11 +26,12 @@ const nav = [
 
 <template>
   <div class="layout">
+    <a href="#main" class="skip-link">Skip to main content</a>
     <aside class="sidebar">
       <div class="brand">
         <img src="/sra-logo-white.png" alt="SRA" class="brand-logo" />
       </div>
-      <nav class="nav">
+      <nav class="nav" aria-label="Main">
         <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="nav-link">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="item.icon" fill="currentColor" /></svg>
           <span>{{ item.label }}</span>
@@ -36,17 +45,18 @@ const nav = [
 
     <div class="content">
       <header class="topbar">
-        <h1>{{ pageTitle }}</h1>
+        <!-- Not a heading: each view supplies the page's single <h1>. -->
+        <span class="topbar-title">{{ pageTitle }}</span>
         <div class="spacer" />
         <div class="user-chip">
-          <span class="avatar">DU</span>
+          <span class="avatar" aria-hidden="true">DU</span>
           <div>
             <div class="user-name">Dev User</div>
             <div class="user-role">Administrator · General · Report</div>
           </div>
         </div>
       </header>
-      <main>
+      <main id="main" ref="mainEl" tabindex="-1">
         <RouterView />
       </main>
     </div>
@@ -84,6 +94,10 @@ const nav = [
   height: 60px; background: var(--surface); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 16px; padding: 0 28px; position: sticky; top: 0; z-index: 10;
 }
+.topbar-title { font-size: 22px; font-weight: 650; color: var(--gray-900); }
+main:focus { outline: none; }
+/* Focus indicator on the dark sidebar needs a light ring to stay visible */
+.nav-link:focus-visible { outline-color: #fff; }
 .user-chip { display: flex; align-items: center; gap: 10px; }
 .user-chip .avatar {
   width: 34px; height: 34px; border-radius: 50%; background: var(--brand-100); color: var(--brand-700);

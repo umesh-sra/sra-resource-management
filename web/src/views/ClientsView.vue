@@ -72,16 +72,16 @@ onMounted(load)
 
     <div class="card">
       <div class="card-pad row">
-        <input class="input" style="max-width: 320px" v-model="q" @input="onSearch" placeholder="Search clients…" />
+        <input class="input" style="max-width: 320px" v-model="q" @input="onSearch" placeholder="Search clients…" aria-label="Search clients" type="search" />
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Name</th><th class="num">Projects</th><th>Created</th></tr></thead>
+          <thead><tr><th scope="col">Name</th><th scope="col" class="num">Projects</th><th scope="col">Created</th></tr></thead>
           <tbody>
-            <tr v-if="loading"><td colspan="3"><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
+            <tr v-if="loading"><td colspan="3"><span class="sr-only" role="status">Loading clients…</span><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
             <template v-else>
               <tr v-for="c in data?.items" :key="c.id" class="clickable" @click="router.push(`/clients/${c.id}`)">
-                <td><strong>{{ c.name }}</strong></td>
+                <td><RouterLink :to="`/clients/${c.id}`" class="row-link" @click.stop><strong>{{ c.name }}</strong></RouterLink></td>
                 <td class="num">{{ c.projectCount }}</td>
                 <td>{{ fmtDate(c.createdAt) }}</td>
               </tr>
@@ -95,8 +95,8 @@ onMounted(load)
 
     <ModalDialog v-if="showCreate" title="New client" @close="showCreate = false">
       <div class="field">
-        <label>Client name</label>
-        <input class="input" v-model="newName" placeholder="e.g. Acme Corporation" @keyup.enter="create" />
+        <label for="client-name">Client name</label>
+        <input id="client-name" class="input" v-model="newName" placeholder="e.g. Acme Corporation" @keyup.enter="create" />
       </div>
       <template #footer>
         <button class="btn" @click="showCreate = false">Cancel</button>

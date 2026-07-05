@@ -48,18 +48,18 @@ async function save() {
 <template>
   <ModalDialog :title="`Edit allocation — ${allocation.resourceName ?? 'resource'}`" @close="emit('close')">
     <div class="form-row">
-      <div class="field"><label>Start date</label><input class="input" v-model="form.startDate" type="date" /></div>
-      <div class="field"><label>End date</label><input class="input" v-model="form.endDate" type="date" /></div>
+      <div class="field"><label for="ea-start">Start date</label><input id="ea-start" class="input" v-model="form.startDate" type="date" /></div>
+      <div class="field"><label for="ea-end">End date</label><input id="ea-end" class="input" v-model="form.endDate" type="date" /></div>
     </div>
     <div class="form-row">
-      <div class="field"><label>Effort</label><input class="input" v-model.number="form.effort" type="number" min="0" /></div>
-      <div class="field"><label>Unit</label>
-        <select class="select" v-model="form.effortUnit">
+      <div class="field"><label for="ea-effort">Effort</label><input id="ea-effort" class="input" v-model.number="form.effort" type="number" min="0" /></div>
+      <div class="field"><label for="ea-unit">Unit</label>
+        <select id="ea-unit" class="select" v-model="form.effortUnit">
           <option value="hoursPerWeek">Hours / week</option><option value="percent">Percent</option>
         </select>
       </div>
     </div>
-    <div class="field"><label>Role on project (optional)</label><input class="input" v-model="form.roleOnProject" /></div>
+    <div class="field"><label for="ea-role">Role on project (optional)</label><input id="ea-role" class="input" v-model="form.roleOnProject" /></div>
     <div class="field">
       <label style="display:flex; align-items:center; gap:8px">
         <input type="checkbox" v-model="form.billable" /> Billable

@@ -72,12 +72,12 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <div v-if="loading" class="card card-pad"><div class="skeleton" style="height: 60px" /></div>
+    <div v-if="loading" class="card card-pad"><span class="sr-only" role="status">Loading client…</span><div class="skeleton" style="height: 60px" /></div>
 
     <template v-else-if="client">
       <div class="page-header">
         <div>
-          <RouterLink to="/clients" class="muted">← Clients</RouterLink>
+          <RouterLink to="/clients" class="muted"><span aria-hidden="true">← </span>Back to clients</RouterLink>
           <h1 style="margin-top: 4px">{{ client.name }}</h1>
           <div class="subtitle">{{ client.projects.length }} project(s) · {{ client.team.length }} people on the team</div>
         </div>
@@ -91,10 +91,10 @@ onMounted(load)
         <div class="card-pad" style="padding-bottom: 8px"><h2>Projects</h2></div>
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Dates</th><th class="num">Budget</th></tr></thead>
+            <thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Dates</th><th scope="col" class="num">Budget</th></tr></thead>
             <tbody>
               <tr v-for="p in client.projects" :key="p.id" class="clickable" @click="router.push(`/projects/${p.id}`)">
-                <td>{{ p.code }}</td>
+                <td><RouterLink :to="`/projects/${p.id}`" class="row-link" @click.stop>{{ p.code }}</RouterLink></td>
                 <td>{{ p.name }}</td>
                 <td><span class="badge" :class="projectStatus(p.status).class">{{ projectStatus(p.status).label }}</span></td>
                 <td>{{ fmtDate(p.startDate) }} – {{ fmtDate(p.endDate) }}</td>
@@ -115,7 +115,7 @@ onMounted(load)
               v-for="m in client.team" :key="m.id" :to="`/resources/${m.id}`"
               class="member"
             >
-              <span class="avatar">{{ initials(m.name) }}</span>
+              <span class="avatar" aria-hidden="true">{{ initials(m.name) }}</span>
               <span>
                 <span class="member-name">{{ m.name }}</span>
                 <span class="muted" style="display:block; font-size:12px">{{ m.primaryJobTitle }}</span>
@@ -128,8 +128,8 @@ onMounted(load)
 
     <ModalDialog v-if="showEdit" title="Edit client" @close="showEdit = false">
       <div class="field">
-        <label>Client name</label>
-        <input class="input" v-model="editName" @keyup.enter="saveEdit" />
+        <label for="edit-client-name">Client name</label>
+        <input id="edit-client-name" class="input" v-model="editName" @keyup.enter="saveEdit" />
       </div>
       <template #footer>
         <button class="btn" @click="showEdit = false">Cancel</button>

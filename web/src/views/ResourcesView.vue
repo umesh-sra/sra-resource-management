@@ -85,9 +85,9 @@ onMounted(load)
 
     <div class="card">
       <div class="card-pad row">
-        <input class="input" style="max-width: 240px" v-model="q" @input="onFilter" placeholder="Search name or email…" />
-        <input class="input" style="max-width: 220px" v-model="skillFilter" @input="onFilter" placeholder="Skills (comma, AND)…" />
-        <select class="select" style="max-width: 160px" v-model="statusFilter" @change="onFilter">
+        <input class="input" style="max-width: 240px" v-model="q" @input="onFilter" placeholder="Search name or email…" aria-label="Search resources by name or email" type="search" />
+        <input class="input" style="max-width: 220px" v-model="skillFilter" @input="onFilter" placeholder="Skills (comma, AND)…" aria-label="Filter by skills, comma-separated" />
+        <select class="select" style="max-width: 160px" v-model="statusFilter" @change="onFilter" aria-label="Filter by status">
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -96,15 +96,15 @@ onMounted(load)
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Name</th><th>Job title</th><th>Department</th><th>Skills</th><th class="num">Avail (h/wk)</th><th>Status</th></tr></thead>
+          <thead><tr><th scope="col">Name</th><th scope="col">Job title</th><th scope="col">Department</th><th scope="col">Skills</th><th scope="col" class="num">Avail (h/wk)</th><th scope="col">Status</th></tr></thead>
           <tbody>
-            <tr v-if="loading"><td colspan="6"><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
+            <tr v-if="loading"><td colspan="6"><span class="sr-only" role="status">Loading resources…</span><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
             <template v-else>
               <tr v-for="r in data?.items" :key="r.id" class="clickable" @click="router.push(`/resources/${r.id}`)">
                 <td>
                   <div class="row" style="gap: 9px">
-                    <span class="avatar">{{ initials(r.name) }}</span>
-                    <strong>{{ r.name }}</strong>
+                    <span class="avatar" aria-hidden="true">{{ initials(r.name) }}</span>
+                    <RouterLink :to="`/resources/${r.id}`" class="row-link" @click.stop><strong>{{ r.name }}</strong></RouterLink>
                   </div>
                 </td>
                 <td>{{ r.primaryJobTitle }}</td>
@@ -123,20 +123,20 @@ onMounted(load)
 
     <ModalDialog v-if="showCreate" title="New resource" @close="showCreate = false">
       <div class="form-row">
-        <div class="field"><label>Name</label><input class="input" v-model="form.name" /></div>
-        <div class="field"><label>Email</label><input class="input" v-model="form.email" type="email" /></div>
+        <div class="field"><label for="nr-name">Name</label><input id="nr-name" class="input" v-model="form.name" /></div>
+        <div class="field"><label for="nr-email">Email</label><input id="nr-email" class="input" v-model="form.email" type="email" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Primary job title</label><input class="input" v-model="form.primaryJobTitle" /></div>
-        <div class="field"><label>Availability (h/week)</label><input class="input" v-model.number="form.availabilityHoursPerWeek" type="number" min="0" max="168" /></div>
+        <div class="field"><label for="nr-title">Primary job title</label><input id="nr-title" class="input" v-model="form.primaryJobTitle" /></div>
+        <div class="field"><label for="nr-avail">Availability (h/week)</label><input id="nr-avail" class="input" v-model.number="form.availabilityHoursPerWeek" type="number" min="0" max="168" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Department</label><input class="input" v-model="form.department" /></div>
-        <div class="field"><label>Location</label><input class="input" v-model="form.location" /></div>
+        <div class="field"><label for="nr-dept">Department</label><input id="nr-dept" class="input" v-model="form.department" /></div>
+        <div class="field"><label for="nr-loc">Location</label><input id="nr-loc" class="input" v-model="form.location" /></div>
       </div>
-      <div class="field"><label>Skills (comma-separated)</label><input class="input" v-model="form.skills" placeholder="C#, Vue.js, PostgreSQL" /></div>
-      <div class="field"><label>Status</label>
-        <select class="select" v-model="form.status">
+      <div class="field"><label for="nr-skills">Skills (comma-separated)</label><input id="nr-skills" class="input" v-model="form.skills" placeholder="C#, Vue.js, PostgreSQL" /></div>
+      <div class="field"><label for="nr-status">Status</label>
+        <select id="nr-status" class="select" v-model="form.status">
           <option value="active">Active</option><option value="inactive">Inactive</option><option value="onLeave">On leave</option>
         </select>
       </div>

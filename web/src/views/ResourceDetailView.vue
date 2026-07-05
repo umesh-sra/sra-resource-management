@@ -99,14 +99,14 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <div v-if="loading" class="card card-pad"><div class="skeleton" style="height: 60px" /></div>
+    <div v-if="loading" class="card card-pad"><span class="sr-only" role="status">Loading resource…</span><div class="skeleton" style="height: 60px" /></div>
 
     <template v-else-if="resource">
       <div class="page-header">
         <div>
-          <RouterLink to="/resources" class="muted">← Resources</RouterLink>
+          <RouterLink to="/resources" class="muted"><span aria-hidden="true">← </span>Back to resources</RouterLink>
           <div class="row" style="gap: 12px; margin-top: 6px">
-            <span class="big-avatar">{{ initials(resource.name) }}</span>
+            <span class="big-avatar" aria-hidden="true">{{ initials(resource.name) }}</span>
             <div>
               <h1>{{ resource.name }}</h1>
               <div class="subtitle">
@@ -139,7 +139,7 @@ onMounted(load)
           <div class="cap-num" :style="{ color: over ? 'var(--red-600)' : 'var(--brand-800)' }">
             {{ resource.allocatedHoursPerWeek }} / {{ resource.availabilityHoursPerWeek }} h&nbsp;<span class="muted" style="font-size:14px">per week</span>
           </div>
-          <div class="ubar" :class="{ over }" style="margin: 12px 0 8px">
+          <div class="ubar" :class="{ over }" style="margin: 12px 0 8px" aria-hidden="true">
             <span :style="{ width: Math.min(utilisation * 100, 100) + '%' }" />
           </div>
           <div :class="over ? 'warn-text' : 'muted'">
@@ -152,10 +152,10 @@ onMounted(load)
         <div class="card-pad" style="padding-bottom: 8px"><h2>Allocations</h2></div>
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>Project</th><th>Role</th><th>Dates</th><th class="num">Effort</th><th>Billable</th></tr></thead>
+            <thead><tr><th scope="col">Project</th><th scope="col">Role</th><th scope="col">Dates</th><th scope="col" class="num">Effort</th><th scope="col">Billable</th></tr></thead>
             <tbody>
               <tr v-for="a in resource.allocations" :key="a.id" class="clickable" @click="router.push(`/projects/${a.projectId}`)">
-                <td>{{ a.projectName }}</td>
+                <td><RouterLink :to="`/projects/${a.projectId}`" class="row-link" @click.stop>{{ a.projectName }}</RouterLink></td>
                 <td>{{ a.roleOnProject ?? '—' }}</td>
                 <td>{{ fmtDate(a.startDate) }} – {{ fmtDate(a.endDate) }}</td>
                 <td class="num">{{ a.effort }} {{ a.effortUnit === 'percent' ? '%' : 'h/wk' }}</td>
@@ -170,28 +170,28 @@ onMounted(load)
 
     <ModalDialog v-if="showEdit" title="Edit resource" @close="showEdit = false">
       <div class="form-row">
-        <div class="field"><label>Name</label><input class="input" v-model="editForm.name" /></div>
-        <div class="field"><label>Email</label><input class="input" v-model="editForm.email" type="email" /></div>
+        <div class="field"><label for="er-name">Name</label><input id="er-name" class="input" v-model="editForm.name" /></div>
+        <div class="field"><label for="er-email">Email</label><input id="er-email" class="input" v-model="editForm.email" type="email" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Primary job title</label><input class="input" v-model="editForm.primaryJobTitle" /></div>
-        <div class="field"><label>Secondary job title</label><input class="input" v-model="editForm.secondaryJobTitle" /></div>
+        <div class="field"><label for="er-title1">Primary job title</label><input id="er-title1" class="input" v-model="editForm.primaryJobTitle" /></div>
+        <div class="field"><label for="er-title2">Secondary job title</label><input id="er-title2" class="input" v-model="editForm.secondaryJobTitle" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Availability (h/week)</label><input class="input" v-model.number="editForm.availabilityHoursPerWeek" type="number" min="0" max="168" /></div>
-        <div class="field"><label>Status</label>
-          <select class="select" v-model="editForm.status">
+        <div class="field"><label for="er-avail">Availability (h/week)</label><input id="er-avail" class="input" v-model.number="editForm.availabilityHoursPerWeek" type="number" min="0" max="168" /></div>
+        <div class="field"><label for="er-status">Status</label>
+          <select id="er-status" class="select" v-model="editForm.status">
             <option value="active">Active</option><option value="inactive">Inactive</option>
             <option value="onLeave">On leave</option>
           </select>
         </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Department</label><input class="input" v-model="editForm.department" /></div>
-        <div class="field"><label>Location</label><input class="input" v-model="editForm.location" /></div>
+        <div class="field"><label for="er-dept">Department</label><input id="er-dept" class="input" v-model="editForm.department" /></div>
+        <div class="field"><label for="er-loc">Location</label><input id="er-loc" class="input" v-model="editForm.location" /></div>
       </div>
-      <div class="field"><label>Skills (comma-separated)</label><input class="input" v-model="editForm.skills" /></div>
-      <div class="field"><label>Notes</label><input class="input" v-model="editForm.notes" /></div>
+      <div class="field"><label for="er-skills">Skills (comma-separated)</label><input id="er-skills" class="input" v-model="editForm.skills" /></div>
+      <div class="field"><label for="er-notes">Notes</label><input id="er-notes" class="input" v-model="editForm.notes" /></div>
       <template #footer>
         <button class="btn" @click="showEdit = false">Cancel</button>
         <button class="btn btn-primary" :disabled="savingEdit || !editForm.name.trim() || !editForm.email.trim() || !editForm.primaryJobTitle.trim()" @click="saveEdit">Save</button>

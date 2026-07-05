@@ -139,12 +139,12 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <div v-if="loading" class="card card-pad"><div class="skeleton" style="height: 60px" /></div>
+    <div v-if="loading" class="card card-pad"><span class="sr-only" role="status">Loading project…</span><div class="skeleton" style="height: 60px" /></div>
 
     <template v-else-if="project">
       <div class="page-header">
         <div>
-          <RouterLink to="/projects" class="muted">← Projects</RouterLink>
+          <RouterLink to="/projects" class="muted"><span aria-hidden="true">← </span>Back to projects</RouterLink>
           <h1 style="margin-top: 4px">{{ project.code }} — {{ project.name }}</h1>
           <div class="subtitle">
             <RouterLink :to="`/clients/${project.clientId}`">{{ project.clientName }}</RouterLink>
@@ -169,17 +169,17 @@ onMounted(load)
         <div class="card-pad" style="padding-bottom: 8px"><h2>Team & allocations</h2></div>
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>Resource</th><th>Role</th><th>Dates</th><th class="num">Effort</th><th>Billable</th><th></th></tr></thead>
+            <thead><tr><th scope="col">Resource</th><th scope="col">Role</th><th scope="col">Dates</th><th scope="col" class="num">Effort</th><th scope="col">Billable</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>
               <tr v-for="a in project.allocations" :key="a.id" class="clickable" @click="router.push(`/resources/${a.resourceId}`)">
-                <td>{{ a.resourceName }}</td>
+                <td><RouterLink :to="`/resources/${a.resourceId}`" class="row-link" @click.stop>{{ a.resourceName }}</RouterLink></td>
                 <td>{{ a.roleOnProject ?? '—' }}</td>
                 <td>{{ fmtDate(a.startDate) }} – {{ fmtDate(a.endDate) }}</td>
                 <td class="num">{{ a.effort }} {{ a.effortUnit === 'percent' ? '%' : 'h/wk' }}</td>
                 <td><span class="badge" :class="a.billable ? 'green' : 'gray'">{{ a.billable ? 'Billable' : 'Non-billable' }}</span></td>
                 <td class="num" @click.stop>
-                  <button class="btn btn-sm" @click="editAlloc = a">Edit</button>
-                  <button class="btn btn-sm btn-danger" @click="removeAllocation(a)">Remove</button>
+                  <button class="btn btn-sm" @click="editAlloc = a">Edit<span class="sr-only"> allocation of {{ a.resourceName }}</span></button>
+                  <button class="btn btn-sm btn-danger" @click="removeAllocation(a)">Remove<span class="sr-only"> allocation of {{ a.resourceName }}</span></button>
                 </td>
               </tr>
               <tr v-if="!project.allocations.length"><td colspan="6" class="empty">No one allocated yet.</td></tr>
@@ -190,25 +190,25 @@ onMounted(load)
     </template>
 
     <ModalDialog v-if="showAdd" title="Allocate a resource" @close="showAdd = false">
-      <div class="field"><label>Resource</label>
-        <select class="select" v-model="form.resourceId">
+      <div class="field"><label for="al-resource">Resource</label>
+        <select id="al-resource" class="select" v-model="form.resourceId">
           <option value="" disabled>Select a resource…</option>
           <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }} — {{ r.primaryJobTitle }}</option>
         </select>
       </div>
       <div class="form-row">
-        <div class="field"><label>Start date</label><input class="input" v-model="form.startDate" type="date" /></div>
-        <div class="field"><label>End date</label><input class="input" v-model="form.endDate" type="date" /></div>
+        <div class="field"><label for="al-start">Start date</label><input id="al-start" class="input" v-model="form.startDate" type="date" /></div>
+        <div class="field"><label for="al-end">End date</label><input id="al-end" class="input" v-model="form.endDate" type="date" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Effort</label><input class="input" v-model.number="form.effort" type="number" min="0" /></div>
-        <div class="field"><label>Unit</label>
-          <select class="select" v-model="form.effortUnit">
+        <div class="field"><label for="al-effort">Effort</label><input id="al-effort" class="input" v-model.number="form.effort" type="number" min="0" /></div>
+        <div class="field"><label for="al-unit">Unit</label>
+          <select id="al-unit" class="select" v-model="form.effortUnit">
             <option value="hoursPerWeek">Hours / week</option><option value="percent">Percent</option>
           </select>
         </div>
       </div>
-      <div class="field"><label>Role on project (optional)</label><input class="input" v-model="form.roleOnProject" /></div>
+      <div class="field"><label for="al-role">Role on project (optional)</label><input id="al-role" class="input" v-model="form.roleOnProject" /></div>
       <p class="muted" style="font-size: 12.5px">Dates must fall within the project window. Over-allocation is allowed but flagged.</p>
       <template #footer>
         <button class="btn" @click="showAdd = false">Cancel</button>
@@ -218,20 +218,20 @@ onMounted(load)
 
     <ModalDialog v-if="showEdit" title="Edit project" @close="showEdit = false">
       <div class="form-row">
-        <div class="field"><label>Name</label><input class="input" v-model="editForm.name" /></div>
-        <div class="field"><label>Code</label><input class="input" v-model="editForm.code" /></div>
+        <div class="field"><label for="ep-name">Name</label><input id="ep-name" class="input" v-model="editForm.name" /></div>
+        <div class="field"><label for="ep-code">Code</label><input id="ep-code" class="input" v-model="editForm.code" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Start date</label><input class="input" v-model="editForm.startDate" type="date" /></div>
-        <div class="field"><label>End date</label><input class="input" v-model="editForm.endDate" type="date" /></div>
+        <div class="field"><label for="ep-start">Start date</label><input id="ep-start" class="input" v-model="editForm.startDate" type="date" /></div>
+        <div class="field"><label for="ep-end">End date</label><input id="ep-end" class="input" v-model="editForm.endDate" type="date" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Budget</label><input class="input" v-model.number="editForm.budget" type="number" min="0" /></div>
-        <div class="field"><label>Remaining</label><input class="input" v-model.number="editForm.remaining" type="number" min="0" /></div>
+        <div class="field"><label for="ep-budget">Budget</label><input id="ep-budget" class="input" v-model.number="editForm.budget" type="number" min="0" /></div>
+        <div class="field"><label for="ep-remaining">Remaining</label><input id="ep-remaining" class="input" v-model.number="editForm.remaining" type="number" min="0" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Status</label>
-          <select class="select" v-model="editForm.status">
+        <div class="field"><label for="ep-status">Status</label>
+          <select id="ep-status" class="select" v-model="editForm.status">
             <option value="planned">Planned</option><option value="active">Active</option>
             <option value="onHold">On hold</option><option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>

@@ -45,13 +45,13 @@ onMounted(run)
     </div>
 
     <div class="card card-pad row">
-      <label class="muted">From</label>
-      <input class="input" style="max-width: 170px" type="date" v-model="from" />
-      <label class="muted">To</label>
-      <input class="input" style="max-width: 170px" type="date" v-model="to" />
-      <button class="btn btn-primary" :disabled="loading" @click="run">Generate</button>
+      <label class="muted" for="report-from">From</label>
+      <input id="report-from" class="input" style="max-width: 170px" type="date" v-model="from" />
+      <label class="muted" for="report-to">To</label>
+      <input id="report-to" class="input" style="max-width: 170px" type="date" v-model="to" />
+      <button class="btn btn-primary" :disabled="loading" @click="run">Generate<span class="sr-only"> utilisation report</span></button>
       <div class="spacer" />
-      <a class="btn" :href="csvUrl()" target="_blank" rel="noopener">⬇ Export CSV</a>
+      <a class="btn" :href="csvUrl()" target="_blank" rel="noopener"><span aria-hidden="true">⬇</span> Export CSV<span class="sr-only"> (opens in a new tab)</span></a>
     </div>
 
     <div class="card" style="margin-top: 16px">
@@ -61,9 +61,9 @@ onMounted(run)
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Resource</th><th>Department</th><th class="num">Available (h)</th><th class="num">Allocated (h)</th><th style="width: 220px">Utilisation</th></tr></thead>
+          <thead><tr><th scope="col">Resource</th><th scope="col">Department</th><th scope="col" class="num">Available (h)</th><th scope="col" class="num">Allocated (h)</th><th scope="col" style="width: 220px">Utilisation</th></tr></thead>
           <tbody>
-            <tr v-if="loading"><td colspan="5"><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
+            <tr v-if="loading"><td colspan="5"><span class="sr-only" role="status">Generating report…</span><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
             <template v-else-if="report">
               <tr v-for="r in report.rows" :key="r.resourceId">
                 <td>{{ r.resourceName }}</td>
@@ -72,11 +72,11 @@ onMounted(run)
                 <td class="num">{{ r.allocatedHours.toLocaleString() }}</td>
                 <td>
                   <div class="row" style="gap: 10px">
-                    <div class="ubar" :class="{ over: r.utilisation > 1 }" style="flex: 1">
+                    <div class="ubar" :class="{ over: r.utilisation > 1 }" style="flex: 1" aria-hidden="true">
                       <span :style="{ width: Math.min(r.utilisation * 100, 100) + '%' }" />
                     </div>
                     <span :class="r.utilisation > 1 ? 'warn-text' : 'muted'" style="min-width: 42px; text-align: right">
-                      {{ Math.round(r.utilisation * 100) }}%
+                      {{ Math.round(r.utilisation * 100) }}%<span v-if="r.utilisation > 1" class="sr-only"> — over-allocated</span>
                     </span>
                   </div>
                 </td>

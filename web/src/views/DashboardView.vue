@@ -32,6 +32,7 @@ onMounted(async () => {
     </div>
 
     <div v-if="loading" class="grid grid-stats">
+      <span class="sr-only" role="status">Loading dashboard…</span>
       <div v-for="n in 6" :key="n" class="card stat"><div class="skeleton" style="height: 56px" /></div>
     </div>
 
@@ -76,10 +77,10 @@ onMounted(async () => {
           <div class="card-pad" style="padding-bottom: 8px"><h2>Upcoming project starts</h2></div>
           <div class="table-wrap">
             <table class="table">
-              <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Starts</th></tr></thead>
+              <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Starts</th></tr></thead>
               <tbody>
                 <tr v-for="p in data.upcomingProjectStarts" :key="p.id" class="clickable" @click="router.push(`/projects/${p.id}`)">
-                  <td>{{ p.code }} — {{ p.name }}</td>
+                  <td><RouterLink :to="`/projects/${p.id}`" class="row-link" @click.stop>{{ p.code }} — {{ p.name }}</RouterLink></td>
                   <td>{{ p.clientName }}</td>
                   <td><span class="badge" :class="projectStatus(p.status).class">{{ projectStatus(p.status).label }}</span></td>
                   <td>{{ fmtDate(p.startDate) }}</td>
@@ -94,10 +95,10 @@ onMounted(async () => {
           <div class="card-pad" style="padding-bottom: 8px"><h2>Upcoming roll-offs</h2></div>
           <div class="table-wrap">
             <table class="table">
-              <thead><tr><th>Resource</th><th>Project</th><th>Ends</th></tr></thead>
+              <thead><tr><th scope="col">Resource</th><th scope="col">Project</th><th scope="col">Ends</th></tr></thead>
               <tbody>
                 <tr v-for="a in data.upcomingRollOffs" :key="a.id" class="clickable" @click="router.push(`/resources/${a.resourceId}`)">
-                  <td>{{ a.resourceName }}</td>
+                  <td><RouterLink :to="`/resources/${a.resourceId}`" class="row-link" @click.stop>{{ a.resourceName }}</RouterLink></td>
                   <td>{{ a.projectName }}</td>
                   <td>{{ fmtDate(a.endDate) }}</td>
                 </tr>

@@ -83,8 +83,8 @@ onMounted(load)
 
     <div class="card">
       <div class="card-pad row">
-        <input class="input" style="max-width: 260px" v-model="q" @input="onFilter" placeholder="Search name or code…" />
-        <select class="select" style="max-width: 170px" v-model="statusFilter" @change="onFilter">
+        <input class="input" style="max-width: 260px" v-model="q" @input="onFilter" placeholder="Search name or code…" aria-label="Search projects by name or code" type="search" />
+        <select class="select" style="max-width: 170px" v-model="statusFilter" @change="onFilter" aria-label="Filter by status">
           <option value="">All statuses</option>
           <option value="planned">Planned</option><option value="active">Active</option>
           <option value="onHold">On hold</option><option value="completed">Completed</option>
@@ -93,12 +93,12 @@ onMounted(load)
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Code</th><th>Name</th><th>Client</th><th>Status</th><th>Dates</th><th class="num">Budget</th><th>Billable</th></tr></thead>
+          <thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Dates</th><th scope="col" class="num">Budget</th><th scope="col">Billable</th></tr></thead>
           <tbody>
-            <tr v-if="loading"><td colspan="7"><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
+            <tr v-if="loading"><td colspan="7"><span class="sr-only" role="status">Loading projects…</span><div class="skeleton" style="height: 20px; margin: 6px 0" /></td></tr>
             <template v-else>
               <tr v-for="p in data?.items" :key="p.id" class="clickable" @click="router.push(`/projects/${p.id}`)">
-                <td><strong>{{ p.code }}</strong></td>
+                <td><RouterLink :to="`/projects/${p.id}`" class="row-link" @click.stop><strong>{{ p.code }}</strong></RouterLink></td>
                 <td>{{ p.name }}</td>
                 <td>{{ p.clientName }}</td>
                 <td><span class="badge" :class="projectStatus(p.status).class">{{ projectStatus(p.status).label }}</span></td>
@@ -116,23 +116,23 @@ onMounted(load)
 
     <ModalDialog v-if="showCreate" title="New project" @close="showCreate = false">
       <div class="form-row">
-        <div class="field"><label>Name</label><input class="input" v-model="form.name" /></div>
-        <div class="field"><label>Code</label><input class="input" v-model="form.code" placeholder="ACME-001" /></div>
+        <div class="field"><label for="np-name">Name</label><input id="np-name" class="input" v-model="form.name" /></div>
+        <div class="field"><label for="np-code">Code</label><input id="np-code" class="input" v-model="form.code" placeholder="ACME-001" /></div>
       </div>
-      <div class="field"><label>Client</label>
-        <select class="select" v-model="form.clientId">
+      <div class="field"><label for="np-client">Client</label>
+        <select id="np-client" class="select" v-model="form.clientId">
           <option value="" disabled>Select a client…</option>
           <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
       </div>
       <div class="form-row">
-        <div class="field"><label>Start date</label><input class="input" v-model="form.startDate" type="date" /></div>
-        <div class="field"><label>End date</label><input class="input" v-model="form.endDate" type="date" /></div>
+        <div class="field"><label for="np-start">Start date</label><input id="np-start" class="input" v-model="form.startDate" type="date" /></div>
+        <div class="field"><label for="np-end">End date</label><input id="np-end" class="input" v-model="form.endDate" type="date" /></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Budget (AUD)</label><input class="input" v-model.number="form.budget" type="number" min="0" /></div>
-        <div class="field"><label>Status</label>
-          <select class="select" v-model="form.status">
+        <div class="field"><label for="np-budget">Budget (AUD)</label><input id="np-budget" class="input" v-model.number="form.budget" type="number" min="0" /></div>
+        <div class="field"><label for="np-status">Status</label>
+          <select id="np-status" class="select" v-model="form.status">
             <option value="planned">Planned</option><option value="active">Active</option>
             <option value="onHold">On hold</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
           </select>
