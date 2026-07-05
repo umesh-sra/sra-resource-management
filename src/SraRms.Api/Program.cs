@@ -74,7 +74,49 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// HSTS for non-Development hosts (NFR-SEC-1); UseHsts skips localhost.
+builder.Services.AddHsts(o =>
+{
+    o.MaxAge = TimeSpan.FromDays(365);
+    o.IncludeSubDomains = true;
+});
+
 var app = builder.Build();
+
+// ---------------------------------------------------------------------------
+// Security headers on every response (NFR-SEC-1, NFR-SEC-4 / OWASP secure
+// headers). Registered first, via OnStarting, so they also cover error
+// responses re-executed by the exception handler below.
+// ---------------------------------------------------------------------------
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.OnStarting(() =>
+    {
+        var h = ctx.Response.Headers;
+        h["X-Content-Type-Options"] = "nosniff";
+        h["X-Frame-Options"] = "DENY";
+        h["Referrer-Policy"] = "no-referrer";
+        // The API serves JSON and raw images — nothing may execute or frame it.
+        // Swagger UI (Development only) is an HTML app and needs its own assets.
+        if (!ctx.Request.Path.StartsWithSegments("/swagger"))
+            h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
+        // Responses can carry personal data (NFR-SEC-5): no caching unless an
+        // endpoint explicitly opts in with its own Cache-Control.
+        if (!h.ContainsKey("Cache-Control"))
+            h["Cache-Control"] = "no-store";
+        return Task.CompletedTask;
+    });
+    await next();
+});
+
+if (!app.Environment.IsDevelopment())
+{
+    // Local dev runs plain HTTP on localhost:5163; deployed hosts must be
+    // TLS-only (NFR-SEC-1). Behind a TLS-terminating proxy, forwarded-headers
+    // configuration is needed for the redirect to see the original scheme.
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
 
 // RFC 9457 problem+json for unhandled exceptions (500) and bodyless status
 // codes produced by middleware (e.g. 401/403 from authn/authz), per the

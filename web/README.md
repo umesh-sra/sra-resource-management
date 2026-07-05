@@ -45,6 +45,29 @@ src/
 - **Over-allocation**: creating an allocation that exceeds capacity still succeeds
   (HTTP 201) but returns a `warnings[]` array, shown to the user as a toast.
 
+## Production hosting headers
+
+`npm run build` produces a static bundle; security headers must come from
+whatever serves `dist/` (reverse proxy, CDN, static host). The dev/preview
+servers already send the non-CSP subset (see `vite.config.ts`). Required
+(NFR-SEC-1, NFR-SEC-4):
+
+```
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+Content-Security-Policy: default-src 'self'; script-src 'self';
+  style-src 'self' 'unsafe-inline'; img-src 'self' data: <API_ORIGIN>;
+  connect-src 'self' <API_ORIGIN>; frame-ancestors 'none';
+  base-uri 'self'; form-action 'self'; object-src 'none'
+```
+
+Replace `<API_ORIGIN>` with the deployed API origin (`VITE_API_BASE` minus the
+`/v1` path). `style-src 'unsafe-inline'` is needed because components use
+inline `style=` bindings. The API sets its own headers server-side
+(`src/SraRms.Api/Program.cs`).
+
 ## Not yet wired
 
 - **Entra ID sign-in** — `api/http.ts` is the interceptor point to attach a bearer

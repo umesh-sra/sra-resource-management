@@ -9,6 +9,8 @@ See `docs/Requirements.md` for the full spec and `docs/openapi.yaml` for the API
 - [x] **Business API** — `src/SraRms.Api` implements every endpoint in `docs/openapi.yaml` (CRUD, dashboard, Gantt, reports, reference data), RBAC policies, RFC 9457 errors, over-allocation warnings.
 - [x] **Tests (initial)** — `tests/SraRms.Api.Tests`: AllocationService unit tests + integration tests for clients, allocations, resources, reports (Testcontainers Postgres). 18 passing.
 - [x] **Front end (initial)** — `web/` Vue 3 + Vite + TS SPA: layout/nav, dashboard, clients, projects, resources (all list + create + detail), allocations, utilisation report. Wired to the live API.
+- [x] **Security headers (NFR-SEC-1, NFR-SEC-4)** — 2026-07-05: API middleware sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, strict CSP (Swagger exempt), and default `Cache-Control: no-store` on every response, + HSTS/HTTPS-redirect outside Development (integration-tested in `SecurityHeadersTests`); Vite dev/preview servers send the non-CSP subset; production hosting CSP documented in `web/README.md`. Note: the deployment guide (below) must wire forwarded headers if TLS terminates at a proxy.
+- [x] **Accessibility pass (NFR-USE-2, WCAG 2.1 AA)** — resolves review finding W-M1 (2026-07-05): skip link, keyboard-reachable row links, modal focus trap/Escape/labelling, toast live region + keyboard dismiss, `label for=` on all fields, `th scope`, visible focus indicators, contrast-compliant tokens (muted text, amber, success toast, input borders), single `h1` per page, reduced-motion support.
 
 ## Next up — additional test slices
 
