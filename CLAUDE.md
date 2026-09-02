@@ -44,6 +44,8 @@ MSYS_NO_PATHCONV=1 docker run --rm -i -e PGPASSWORD="<pw>" \
   psql -h host.docker.internal -U postgres -d sra_rms -v ON_ERROR_STOP=1 -f /db/migrations/V001__initial_schema.sql
 ```
 
+Business dates: `App:TimeZone` (an IANA name, default `Australia/Adelaide`) sets the zone the server uses for every derived **business date** — the dashboard horizon, "current" allocations, utilisation windows. Never derive these from `DateTime.UtcNow`: in Australia that rolls the day over mid-morning, so same-day items drop out of the horizon while the SPA still shows them. Use the injected `BusinessClock` (`Services/BusinessClock.cs`). Audit `created_at`/`updated_at` are instants and correctly stay UTC. An unknown zone id fails at startup rather than quietly serving UTC dates.
+
 Local API auth: `appsettings.Development.json` sets `Auth:Mode=Dev`, which signs every request in as a synthetic all-roles user so endpoints can be exercised without an Entra tenant. This bypass is hard-gated to the Development environment.
 
 ## Domain model

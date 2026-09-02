@@ -24,8 +24,14 @@ const monthStart = computed(() => month.value)
 const monthEnd = computed(() => new Date(month.value.getFullYear(), month.value.getMonth() + 1, 0))
 const monthLabel = computed(() => month.value.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }))
 
-const today = new Date()
-const greeting = computed(() => `Have a great ${today.toLocaleDateString('en-AU', { weekday: 'long' })}`)
+/**
+ * "Today" comes from the server once the summary loads, so the agenda's date
+ * marker matches the business date the API computed its figures for. The
+ * browser's local date is only the pre-fetch fallback: the two can differ, which
+ * is precisely the bug the API-side BusinessClock fixes.
+ */
+const today = computed(() => (summary.value ? parseDate(summary.value.today) : new Date()))
+const greeting = computed(() => `Have a great ${today.value.toLocaleDateString('en-AU', { weekday: 'long' })}`)
 
 interface AgendaEvent {
   kind: 'project-start' | 'project-end' | 'joins' | 'rolls-off'
@@ -103,7 +109,7 @@ function shiftMonth(n: number) {
   load()
 }
 function goToday() {
-  month.value = new Date(today.getFullYear(), today.getMonth(), 1)
+  month.value = new Date(today.value.getFullYear(), today.value.getMonth(), 1)
   load()
 }
 

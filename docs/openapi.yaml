@@ -1566,6 +1566,16 @@ components:
     DashboardSummary:
       type: object
       properties:
+        today:
+          type: string
+          format: date
+          description: >
+            The business date these figures were computed for, in the
+            organisation's time zone (App:TimeZone) rather than UTC. Clients
+            should anchor on this instead of the browser's local date.
+        timeZone:
+          type: string
+          description: IANA name of the business time zone, e.g. Australia/Adelaide.
         activeProjects: { type: integer }
         totalResources: { type: integer }
         averageUtilisation: { type: number, format: double, description: 'Fraction 0..1.' }

@@ -9,7 +9,7 @@ using SraRms.Api.Services;
 namespace SraRms.Api.Controllers;
 
 [Route("v1/dashboard")]
-public class DashboardController(AppDbContext db) : BaseApiController
+public class DashboardController(AppDbContext db, BusinessClock clock) : BaseApiController
 {
     // Heuristic thresholds for the headline metrics (documented in Requirements §4.6).
     private const decimal UnderAllocatedBelow = 0.5m; // utilisation under 50% = under-allocated
@@ -21,7 +21,10 @@ public class DashboardController(AppDbContext db) : BaseApiController
     public async Task<ActionResult<DashboardSummaryDto>> Summary(
         [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Business date in the organisation's zone, not UTC: a UTC-derived "today"
+        // rolls over mid-morning in Australia and drops same-day items from the
+        // horizon while the SPA still shows them. See Services/BusinessClock.cs.
+        var today = clock.Today;
         var horizonFrom = from ?? today;
         var horizonTo = to ?? today.AddDays(30);
 
@@ -61,6 +64,8 @@ public class DashboardController(AppDbContext db) : BaseApiController
 
         var dto = new DashboardSummaryDto
         {
+            Today = today,
+            TimeZone = clock.TimeZone.Id,
             ActiveProjects = activeProjects,
             TotalResources = resources.Count,
             AverageUtilisation = utilisations.Count > 0 ? (double)utilisations.Average() : 0,

@@ -9,7 +9,7 @@ using SraRms.Api.Services;
 namespace SraRms.Api.Controllers;
 
 [Route("v1/resources")]
-public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : BaseApiController
+public class ResourcesController(AppDbContext db, IWebHostEnvironment env, BusinessClock clock) : BaseApiController
 {
     // GET /resources
     [HttpGet]
@@ -102,7 +102,9 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
             .FirstOrDefaultAsync(r => r.Id == resourceId, ct);
         if (resource is null) return NotFoundProblem($"Resource {resourceId} not found.");
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Same business-date rule as the dashboard, so the person panel's current
+        // load and the dashboard's utilisation never disagree about "today".
+        var today = clock.Today;
         var current = resource.Allocations.Where(a => a.StartDate <= today && today <= a.EndDate);
         var allocatedHours = current.Sum(a =>
             AllocationService.WeeklyHours(a.Effort, a.EffortUnit, resource.AvailabilityHoursPerWeek));

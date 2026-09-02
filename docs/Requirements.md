@@ -101,7 +101,7 @@ Modern evergreen browsers (Chrome, Edge, Firefox, Safari — current and prior m
 - An Active Directory tenant and the appropriate app registration / security groups are available.
 - AD groups exist (or will be created) to map onto the three application roles.
 - Reference data (departments, locations, job titles) is maintained by Administrators within the app.
-- A single currency and time zone are used for budgets and scheduling in the first release (configurable defaults).
+- A single currency and time zone are used for budgets and scheduling in the first release (configurable defaults). The business time zone is set by `App:TimeZone` and governs every **business date** the server derives (dashboard horizon, "current" allocations, utilisation windows). Audit timestamps remain UTC instants. Per-resource time zones (§3.3) describe where a person works and do not change organisation-level figures.
 
 ---
 
@@ -453,7 +453,7 @@ The following artifacts accompany delivery: this requirements document, the Open
 1. Is allocation effort expressed in hours per week, percentage of availability, or both?
 2. Is "Remaining" budget maintained manually, or derived from actuals captured elsewhere (and if so, from where)?
 3. Should historical allocations be retained indefinitely for reporting, and is soft-delete required?
-4. Is multi-currency / multi-time-zone needed in the first release?
+4. Is multi-currency / multi-time-zone needed in the first release? *(Partly settled: a single configurable business time zone is implemented via `App:TimeZone`; multi-currency and per-user time-zone presentation remain open.)*
 5. What are the exact AD groups and their mapping to the three roles?
 6. Is a full audit history (who changed what, before/after) required, or is last-modified attribution sufficient?
 7. *(v1.1)* Should `utilisation` be measured against effective capacity (availability less time off) instead of gross availability? The current definition keeps the ratio comparable with v1.0 and reports both figures (FR-REP-6), but the reference application headlines utilisation against effective capacity.

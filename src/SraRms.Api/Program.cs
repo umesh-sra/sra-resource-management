@@ -22,6 +22,17 @@ builder.Services.AddDbContext<AppDbContext>(o => o.ConfigureNpgsql(connString));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AllocationService>();
 
+// Business dates (dashboard horizons, current-allocation windows) resolve in the
+// organisation's time zone, not UTC — see Services/BusinessClock.cs.
+//
+// Built eagerly, not from a factory lambda: a DI factory is invoked on first
+// resolve, so a mistyped zone would let the app start and then 500 on every
+// dashboard request. Resolving here fails the build step instead, so a bad
+// App:TimeZone never reaches a running deployment.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(
+    BusinessClock.FromConfiguration(TimeProvider.System, builder.Configuration["App:TimeZone"]));
+
 // ---------------------------------------------------------------------------
 // MVC + JSON: enums serialise as the OpenAPI camelCase tokens.
 // ---------------------------------------------------------------------------

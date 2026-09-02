@@ -169,6 +169,15 @@ export interface Allocation {
 }
 
 export interface DashboardSummary {
+  /**
+   * Business date the figures were computed for, in the organisation's time zone.
+   * Prefer this over `new Date()` so the SPA and API agree about "today" — they
+   * disagreed for the first ~10 hours of each Australian day when the API
+   * derived its date from UTC.
+   */
+  today: string
+  /** IANA name of the business time zone. */
+  timeZone: string
   activeProjects: number
   totalResources: number
   averageUtilisation: number

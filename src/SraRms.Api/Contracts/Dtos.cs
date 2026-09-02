@@ -337,6 +337,16 @@ public record AllocationDto
 // ----------------------------------------------------------------------------
 public record DashboardSummaryDto
 {
+    /// <summary>
+    /// The business date the figures were computed for, in the organisation's
+    /// time zone. Exposed so the SPA can anchor on the same day the server used
+    /// instead of the browser's local date, which may differ.
+    /// </summary>
+    public DateOnly Today { get; init; }
+
+    /// <summary>IANA name of the business time zone (see App:TimeZone).</summary>
+    public string TimeZone { get; init; } = "UTC";
+
     public int ActiveProjects { get; init; }
     public int TotalResources { get; init; }
     public double AverageUtilisation { get; init; }
