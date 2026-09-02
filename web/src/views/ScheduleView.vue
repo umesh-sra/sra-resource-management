@@ -8,6 +8,7 @@ import { useToastStore } from '@/stores/toast'
 import TimelineGrid from '@/components/TimelineGrid.vue'
 import AppAvatar from '@/components/AppAvatar.vue'
 import AllocationEditModal from '@/components/AllocationEditModal.vue'
+import ScheduleEntryModal from '@/components/ScheduleEntryModal.vue'
 
 /**
  * People-by-day schedule (screens/schedule.png): one row per resource, one bar
@@ -31,6 +32,9 @@ const data = ref<GanttResponse | null>(null)
 const resources = ref<Resource[]>([])
 const loading = ref(true)
 const editAlloc = ref<Allocation | null>(null)
+
+/** Day cell picked on the grid — opens the Booking / Time Off sheet for that person and day. */
+const entry = ref<{ resourceId?: string; date: string } | null>(null)
 
 const from = computed(() => isoDate(anchor.value))
 const to = computed(() => isoDate(addDays(anchor.value, ZOOM[zoom.value].span - 1)))
@@ -131,10 +135,26 @@ async function openBar(bar: GanttBar) {
   }
 }
 
+/** Clicking a day opens the reference's Booking / Time Off sheet (screens/shedule_*.png). */
+function openCell(row: GanttRow, date: string) {
+  entry.value = { resourceId: row.id, date }
+}
+
+/** Keyboard equivalent of picking a cell: the row's own "add" action. */
+function openRow(row: GanttRow) {
+  const clamped = from.value <= isoDate(new Date()) && isoDate(new Date()) <= to.value
+    ? isoDate(new Date())
+    : from.value
+  entry.value = { resourceId: row.id, date: clamped }
+}
+
 function barText(bar: GanttBar, row: GanttRow): string {
   const meta = byId.value.get(row.id)
   const effort = bar.effort != null
-    ? effortPerDay(bar.effort, bar.effortUnit ?? 'hoursPerWeek', Number(meta?.availabilityHoursPerWeek ?? 38))
+    ? effortPerDay(
+        bar.effort, bar.effortUnit ?? 'hoursPerWeek',
+        Number(meta?.availabilityHoursPerWeek ?? 38), meta?.workingDays?.length || 5,
+      )
     : ''
   return effort ? `${effort} · ${bar.label ?? ''}` : (bar.label ?? '')
 }
@@ -177,8 +197,8 @@ onMounted(load)
   <div class="page">
     <TimelineGrid
       :rows="rows" :from="from" :to="to" :day-width="ZOOM[zoom].dayWidth"
-      :loading="loading" empty-text="No one is scheduled in this window."
-      @bar-click="openBar"
+      :loading="loading" empty-text="No one is scheduled in this window." cell-clickable
+      @bar-click="openBar" @cell-click="openCell"
     >
       <template #label-head>
         <span class="muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: .03em; font-weight: 600">
@@ -187,32 +207,49 @@ onMounted(load)
       </template>
 
       <template #row-label="{ row }">
-        <RouterLink :to="`/people/${row.id}`" class="person">
-          <AppAvatar :name="row.label" :image-url="byId.get(row.id)?.imageUrl" :size="38" />
-          <span class="person-meta">
-            <span class="person-name">{{ row.label }}</span>
-            <span class="person-role">{{ byId.get(row.id)?.primaryJobTitle ?? '—' }}</span>
-            <span class="person-loc">{{ byId.get(row.id)?.location ?? '' }}</span>
-          </span>
-        </RouterLink>
+        <div class="person-row">
+          <RouterLink :to="`/people/${row.id}`" class="person">
+            <AppAvatar :name="row.label" :image-url="byId.get(row.id)?.imageUrl" :size="38" />
+            <span class="person-meta">
+              <span class="person-name">{{ row.label }}</span>
+              <span class="person-role">{{ byId.get(row.id)?.primaryJobTitle ?? '—' }}</span>
+              <span class="person-loc">{{ byId.get(row.id)?.location ?? '' }}</span>
+            </span>
+          </RouterLink>
+          <button
+            class="icon-btn plain add" :aria-label="`Add a booking or time off for ${row.label}`"
+            @click="openRow(row)"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+          </button>
+        </div>
       </template>
 
       <template #bar="{ bar, row }">{{ barText(bar, row) }}</template>
     </TimelineGrid>
 
     <p class="muted legend">
-      Bars in red exceed the person's weekly availability — over-allocation is flagged, not blocked (FR-ALL-6). Select a bar to edit that allocation. Hatched blocks are time off (FR-TIMEOFF-5).</p>
+      Bars in red exceed the person's weekly availability — over-allocation is flagged, not blocked (FR-ALL-6). Select a bar to edit that allocation, or a free day to add a booking or time off. Hatched blocks are time off (FR-TIMEOFF-5).</p>
   </div>
 
   <AllocationEditModal
     v-if="editAlloc" :allocation="editAlloc"
     @close="editAlloc = null" @saved="editAlloc = null; load()"
   />
+
+  <ScheduleEntryModal
+    v-if="entry" :resources="resources" :resource-id="entry.resourceId" :date="entry.date"
+    @close="entry = null" @saved="entry = null; load()"
+  />
 </template>
 
 <style scoped>
 .range { font-size: 15px; color: var(--gray-900); min-width: 190px; }
-.person { display: flex; gap: 10px; align-items: flex-start; color: inherit; }
+.person-row { display: flex; align-items: flex-start; gap: 6px; width: 100%; }
+.person { display: flex; gap: 10px; align-items: flex-start; color: inherit; min-width: 0; flex: 1; }
+/* Keyboard/AT route to the day-cell dialog, which is pointer-only on the grid. */
+.person-row .add { margin-left: auto; opacity: 0; flex-shrink: 0; }
+.tl-row:hover .person-row .add, .person-row .add:focus-visible { opacity: 1; }
 .person:hover { text-decoration: none; }
 .person:hover .person-name { text-decoration: underline; }
 .person-meta { min-width: 0; }

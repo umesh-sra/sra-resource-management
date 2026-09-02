@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { GanttBar, GanttRow } from '@/types'
-import { addDays, daysBetween, isSameDay, isWeekend, isoWeek, parseDate } from '@/lib/format'
+import { addDays, daysBetween, isSameDay, isWeekend, isoDate, isoWeek, parseDate } from '@/lib/format'
 
 /**
  * Horizontal day-grid timeline shared by the Schedule (people) and Gantt
@@ -20,11 +20,20 @@ const props = withDefaults(
     labelWidth?: number
     loading?: boolean
     emptyText?: string
+    /** Turns empty grid cells into a click target for "add something on this day". */
+    cellClickable?: boolean
   }>(),
-  { dayWidth: 34, labelWidth: 236, loading: false, emptyText: 'Nothing scheduled in this window.' },
+  {
+    dayWidth: 34, labelWidth: 236, loading: false, cellClickable: false,
+    emptyText: 'Nothing scheduled in this window.',
+  },
 )
 
-const emit = defineEmits<{ barClick: [bar: GanttBar, row: GanttRow] }>()
+const emit = defineEmits<{
+  barClick: [bar: GanttBar, row: GanttRow]
+  /** A day cell was picked; `date` is `yyyy-MM-dd`. */
+  cellClick: [row: GanttRow, date: string]
+}>()
 
 const start = computed(() => parseDate(props.from))
 const days = computed(() => {
@@ -85,6 +94,30 @@ function laidOut(row: GanttRow) {
   }).filter((b) => !b.clipped)
 }
 
+/**
+ * Pointer picking of a day cell. The cells are not individual buttons on
+ * purpose: at the month zoom a row spans 182 of them, which would bury the page
+ * under tab stops. The keyboard route is the per-row action the caller renders
+ * in the `row-label` slot.
+ */
+const hover = ref<{ rowId: string; index: number } | null>(null)
+
+function dayIndexAt(e: MouseEvent): number {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const i = Math.floor((e.clientX - rect.left) / props.dayWidth)
+  return Math.min(Math.max(i, 0), days.value.length - 1)
+}
+
+function onCellHover(e: MouseEvent, row: GanttRow) {
+  if (!props.cellClickable) return
+  hover.value = { rowId: row.id, index: dayIndexAt(e) }
+}
+
+function onCellClick(e: MouseEvent, row: GanttRow) {
+  if (!props.cellClickable) return
+  emit('cellClick', row, isoDate(days.value[dayIndexAt(e)]!))
+}
+
 const layouts = computed(() =>
   props.rows.map((row) => {
     const bars = laidOut(row)
@@ -130,7 +163,12 @@ const layouts = computed(() =>
               <strong>{{ l.row.label }}</strong>
             </slot>
           </div>
-          <div class="tl-row-grid" :style="{ width: `${gridWidth}px` }">
+          <div
+            class="tl-row-grid" :class="{ addable: cellClickable }" :style="{ width: `${gridWidth}px` }"
+            @click="onCellClick($event, l.row)"
+            @mousemove="onCellHover($event, l.row)"
+            @mouseleave="hover = null"
+          >
             <div class="tl-cols" aria-hidden="true">
               <div
                 v-for="(d, i) in days" :key="i" class="tl-col"
@@ -138,11 +176,16 @@ const layouts = computed(() =>
                 :style="{ width: `${dayWidth}px` }"
               />
             </div>
+            <span
+              v-if="cellClickable && hover?.rowId === l.row.id"
+              class="tl-cell-add" aria-hidden="true"
+              :style="{ left: `${hover.index * dayWidth}px`, width: `${dayWidth}px` }"
+            ><span v-if="dayWidth >= 16">+</span></span>
             <button
               v-for="(b, i) in l.bars" :key="i" type="button" class="tl-bar"
               :class="{ over: b.bar.overAllocated, leave: b.bar.kind === 'timeOff' }"
               :style="{ left: `${b.left}px`, width: `${b.width}px`, top: `${BAR_GAP + b.lane * (BAR_H + BAR_GAP)}px`, height: `${BAR_H}px` }"
-              @click="emit('barClick', b.bar, l.row)"
+              @click.stop="emit('barClick', b.bar, l.row)"
             >
               <span class="tl-bar-text">
                 <slot name="bar" :bar="b.bar" :row="l.row">{{ b.bar.label }}</slot>
@@ -186,6 +229,13 @@ const layouts = computed(() =>
 }
 .tl-row:hover .tl-row-label { background: var(--gray-50); }
 .tl-row-grid { flex-shrink: 0; position: relative; }
+.tl-row-grid.addable { cursor: pointer; }
+/* Follows the pointer so it is obvious that a day, not the row, is the target. */
+.tl-cell-add {
+  position: absolute; top: 2px; bottom: 2px; display: grid; place-items: center;
+  background: var(--brand-50); border: 1px dashed var(--brand-400); border-radius: 6px;
+  color: var(--brand-600); font-size: 15px; font-weight: 700; line-height: 1; pointer-events: none; z-index: 1;
+}
 .tl-cols { position: absolute; inset: 0; display: flex; }
 .tl-col { flex-shrink: 0; }
 .tl-col.weekend { background: var(--gray-50); }

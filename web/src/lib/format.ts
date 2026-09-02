@@ -1,4 +1,4 @@
-import type { MilestoneStatus, ProjectStatus, ResourceStatus, TimeOffType } from '@/types'
+import type { MilestoneStatus, ProjectStatus, ResourceStatus, TimeOffType, Weekday } from '@/types'
 
 export const fmtDate = (iso?: string): string =>
   iso ? new Date(iso).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
@@ -127,10 +127,44 @@ export const isWeekend = (d: Date): boolean => d.getDay() === 0 || d.getDay() ==
 export const isSameDay = (a: Date, b: Date): boolean =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
-/** Effort rendered as the reference does on a timeline bar: "8h per day". */
-export function effortPerDay(effort: number, unit: 'hoursPerWeek' | 'percent', availability = 38): string {
+/**
+ * Effort rendered as the reference does on a timeline bar: "8h per day".
+ *
+ * `workingDaysPerWeek` is the person's own pattern, not a flat five: someone on
+ * a three-day week doing 24h/week works 8h on each day they work, and showing
+ * 4.8h would contradict what was entered in the booking dialog.
+ */
+export function effortPerDay(
+  effort: number,
+  unit: 'hoursPerWeek' | 'percent',
+  availability = 38,
+  workingDaysPerWeek = 5,
+): string {
   const weekly = unit === 'percent' ? (effort / 100) * availability : effort
-  const perDay = weekly / 5
+  const perDay = weekly / (workingDaysPerWeek || 5)
   if (perDay >= 1) return `${Math.round(perDay * 10) / 10}h per day`
   return `${Math.round(perDay * 60)}m per day`
+}
+
+/** `Date.getDay()` order, so a JS date maps straight onto a resource's `workingDays`. */
+const WEEKDAY_BY_INDEX: Weekday[] =
+  ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
+const DEFAULT_WORKING_DAYS: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+
+/**
+ * Working days in the inclusive range `from`–`to` for a person's pattern, used
+ * to price a booking or a block of leave in days as well as hours. Falls back
+ * to Mon–Fri when the resource has no pattern recorded.
+ */
+export function countWorkingDays(from: string, to: string, workingDays?: Weekday[]): number {
+  if (!from || !to || to < from) return 0
+  const pattern = new Set(workingDays?.length ? workingDays : DEFAULT_WORKING_DAYS)
+  const end = parseDate(to)
+  let n = 0
+  // Guard against a pathological range dragging the UI to a halt.
+  for (let d = parseDate(from), i = 0; d <= end && i < 3660; d = addDays(d, 1), i++) {
+    if (pattern.has(WEEKDAY_BY_INDEX[d.getDay()]!)) n++
+  }
+  return n
 }

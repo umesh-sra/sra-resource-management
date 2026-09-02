@@ -23,9 +23,10 @@ See `docs/Requirements.md` for the full spec and `docs/openapi.yaml` for the API
 - [ ] **Time off does not yet reduce over-allocation warnings.** `AllocationService` still compares effort against gross weekly availability, so a person fully on leave is not flagged differently. Reporting *does* account for leave (`effectiveCapacityHours`). Decide whether the warning should use effective capacity — this is open question #7 in `docs/Requirements.md` §8.
 - [ ] **Public holiday calendar is stored but not expanded** — `publicHolidayCalendar` holds a region key; nothing generates `publicHoliday` time-off rows from it (§8 #8).
 - [ ] **Manager cycles** — only direct self-reference is rejected; A → B → A is possible. A full ancestry check needs a recursive query on every write (§8 #9).
-- [ ] **Time-off CRUD has no dedicated UI.** The API is complete (`/v1/timeoff`) and leave renders read-only on the Schedule and person drawer, but there is no add/edit dialog yet — records must be created through the API.
+- [ ] **Time off can be created but not edited from the UI.** Picking a day on the Schedule opens `ScheduleEntryModal` (Booking / Time Off), so leave can now be added; editing and deleting an existing leave record still has no dialog — clicking a hatched bar is a no-op.
 - [ ] **Allocation hourly rate is not in the allocation dialogs.** The column, DTO and contract exist; the project Team tab and `AllocationEditModal` do not expose it yet.
 - [ ] **Phases do not drive allocation** — they are presentational only (§8 #10).
+- [ ] **Reference booking fields with no home in the model.** `screens/shedule_booking.png` carries *Activity Type*, *Tentative*, *Add Repeat* and *Specific Time*; `screens/shedule_timeoff.png` carries *Booker*. `Project.activityTypes` exists, but an allocation has no activity-type column, so the booking dialog omits all five rather than discarding input. Adding any of them is a contract change to `Allocation` / `TimeOff` in `docs/openapi.yaml`.
 
 ## Next up — additional test slices
 
