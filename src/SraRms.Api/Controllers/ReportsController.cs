@@ -22,7 +22,10 @@ public class ReportsController(AppDbContext db) : BaseApiController
     {
         if (to < from) return BadRequestProblem("'to' must be on or after 'from'.");
 
-        var q = db.Resources.AsNoTracking().Include(r => r.Allocations).AsQueryable();
+        var q = db.Resources.AsNoTracking()
+            .Include(r => r.Allocations)
+            .Include(r => r.TimeOff)
+            .AsQueryable();
         if (!string.IsNullOrWhiteSpace(department)) q = q.Where(r => r.Department == department);
         var resources = await q.OrderBy(r => r.Name).ToListAsync(ct);
 
@@ -35,21 +38,66 @@ public class ReportsController(AppDbContext db) : BaseApiController
                 .Sum(a => (double)AllocationService.WeeklyHours(a.Effort, a.EffortUnit, r.AvailabilityHoursPerWeek)
                           * WeeksOverlap(a.StartDate, a.EndDate, from, to));
             var util = available > 0 ? allocated / available : 0;
+            var timeOff = TimeOffHours(r, from, to);
             return new UtilisationRow(r.Id, r.Name, r.Department,
-                Math.Round(available, 2), Math.Round(allocated, 2), Math.Round(util, 4));
+                Math.Round(available, 2), Math.Round(allocated, 2), Math.Round(util, 4),
+                Math.Round(timeOff, 2), Math.Round(Math.Max(0, available - timeOff), 2));
         }).ToList();
 
         if (IsCsv(format))
             return Csv("utilisation.csv",
-                ["resourceId", "resourceName", "department", "availableHours", "allocatedHours", "utilisation"],
+                ["resourceId", "resourceName", "department", "availableHours", "allocatedHours", "utilisation",
+                 "timeOffHours", "effectiveCapacityHours"],
                 rows.Select(r => new[]
                 {
                     r.ResourceId.ToString(), r.ResourceName, r.Department ?? "",
                     Num(r.AvailableHours), Num(r.AllocatedHours), Num(r.Utilisation),
+                    Num(r.TimeOffHours), Num(r.EffectiveCapacityHours),
                 }));
 
         return Ok(new UtilisationReportDto(from, to, rows));
     }
+
+    /// <summary>
+    /// Hours of leave that land on the resource's working days inside the window
+    /// (FR-REP-6). A record with no hoursPerDay costs a whole working day; a
+    /// partial-day record is capped at the working day so it cannot over-subtract.
+    /// Resources with no working days recorded are treated as Mon-Fri.
+    /// </summary>
+    private static double TimeOffHours(Data.Resource r, DateOnly from, DateOnly to)
+    {
+        var working = r.WorkingDays.Count > 0
+            ? r.WorkingDays.Select(ToDayOfWeek).ToHashSet()
+            : [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday];
+        if (working.Count == 0) return 0;
+
+        var perWorkingDay = (double)r.AvailabilityHoursPerWeek / working.Count;
+        var total = 0d;
+        foreach (var t in r.TimeOff)
+        {
+            var start = t.StartDate > from ? t.StartDate : from;
+            var end = t.EndDate < to ? t.EndDate : to;
+            for (var d = start; d <= end; d = d.AddDays(1))
+            {
+                if (!working.Contains(d.DayOfWeek)) continue;
+                total += t.HoursPerDay is null
+                    ? perWorkingDay
+                    : Math.Min((double)t.HoursPerDay.Value, perWorkingDay);
+            }
+        }
+        return total;
+    }
+
+    private static DayOfWeek ToDayOfWeek(Weekday d) => d switch
+    {
+        Weekday.Monday => DayOfWeek.Monday,
+        Weekday.Tuesday => DayOfWeek.Tuesday,
+        Weekday.Wednesday => DayOfWeek.Wednesday,
+        Weekday.Thursday => DayOfWeek.Thursday,
+        Weekday.Friday => DayOfWeek.Friday,
+        Weekday.Saturday => DayOfWeek.Saturday,
+        _ => DayOfWeek.Sunday,
+    };
 
     // GET /reports/allocation
     [HttpGet("allocation")]

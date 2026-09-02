@@ -39,3 +39,34 @@ public enum Weekday
     [PgName("saturday")] Saturday,
     [PgName("sunday")] Sunday,
 }
+
+// ---- V002: reference-application model ------------------------------------
+
+public enum BookableStatus
+{
+    [PgName("bookable")] Bookable,
+    [PgName("nonBookable")] NonBookable,
+}
+
+public enum TimeOffType
+{
+    [PgName("annualLeave")] AnnualLeave,
+    [PgName("personal")] Personal,
+    [PgName("sick")] Sick,
+    [PgName("publicHoliday")] PublicHoliday,
+    [PgName("other")] Other,
+}
+
+public enum MilestoneStatus
+{
+    [PgName("pending")] Pending,
+    [PgName("met")] Met,
+    [PgName("missed")] Missed,
+}
+
+public enum ProjectBudgetType
+{
+    [PgName("none")] None,
+    [PgName("fee")] Fee,
+    [PgName("hours")] Hours,
+}

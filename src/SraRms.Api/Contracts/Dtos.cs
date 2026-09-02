@@ -43,6 +43,15 @@ public class ProjectCreate
     [Range(0, double.MaxValue)] public decimal? Remaining { get; set; }
     public bool Billable { get; set; } = true;
     public ProjectStatus Status { get; set; } = ProjectStatus.Planned;
+
+    // V002 - Budget tab. BudgetType decides which budget fields must be set; the
+    // pairing is validated in ProjectsController and by ck_project_budget_type.
+    public ProjectBudgetType BudgetType { get; set; } = ProjectBudgetType.None;
+    [Range(0, double.MaxValue)] public decimal? BudgetHours { get; set; }
+    [Range(0, double.MaxValue)] public decimal? RemainingHours { get; set; }
+    public List<string> ActivityTypes { get; set; } = new();
+    public string? Details { get; set; }
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] public string? Colour { get; set; }
 }
 
 public class ProjectUpdate
@@ -56,6 +65,15 @@ public class ProjectUpdate
     [Range(0, double.MaxValue)] public decimal? Remaining { get; set; }
     public bool Billable { get; set; } = true;
     public ProjectStatus Status { get; set; } = ProjectStatus.Planned;
+
+    // V002 - Budget tab. BudgetType decides which budget fields must be set; the
+    // pairing is validated in ProjectsController and by ck_project_budget_type.
+    public ProjectBudgetType BudgetType { get; set; } = ProjectBudgetType.None;
+    [Range(0, double.MaxValue)] public decimal? BudgetHours { get; set; }
+    [Range(0, double.MaxValue)] public decimal? RemainingHours { get; set; }
+    public List<string> ActivityTypes { get; set; } = new();
+    public string? Details { get; set; }
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] public string? Colour { get; set; }
 }
 
 public record ProjectDto
@@ -72,6 +90,14 @@ public record ProjectDto
     public bool Billable { get; init; }
     public ProjectStatus Status { get; init; }
 
+    // V002 - Budget tab (new_project_budget.png) and Overview extras.
+    public ProjectBudgetType BudgetType { get; init; }
+    public decimal? BudgetHours { get; init; }
+    public decimal? RemainingHours { get; init; }
+    public IReadOnlyList<string> ActivityTypes { get; init; } = [];
+    public string? Details { get; init; }
+    public string? Colour { get; init; }
+
     /// <summary>
     /// Distinct people allocated to the project. Present on list responses so the
     /// projects grid can render a team roster without an extra call per row.
@@ -85,6 +111,55 @@ public record ProjectDto
 public record ProjectDetailDto : ProjectDto
 {
     public IReadOnlyList<AllocationDto> Allocations { get; init; } = [];
+    public IReadOnlyList<ProjectPhaseDto> Phases { get; init; } = [];
+    public IReadOnlyList<ProjectMilestoneDto> Milestones { get; init; } = [];
+}
+
+// ---- Phases & milestones (V002) --------------------------------------------
+public class ProjectPhaseCreate
+{
+    [Required, StringLength(200, MinimumLength = 1)] public string Name { get; set; } = null!;
+    [Required] public DateOnly StartDate { get; set; }
+    [Required] public DateOnly EndDate { get; set; }
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] public string? Colour { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public class ProjectPhaseUpdate : ProjectPhaseCreate { }
+
+public record ProjectPhaseDto
+{
+    public Guid Id { get; init; }
+    public Guid ProjectId { get; init; }
+    public string Name { get; init; } = null!;
+    public DateOnly StartDate { get; init; }
+    public DateOnly EndDate { get; init; }
+    public string? Colour { get; init; }
+    public int SortOrder { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset UpdatedAt { get; init; }
+}
+
+public class ProjectMilestoneCreate
+{
+    [Required, StringLength(200, MinimumLength = 1)] public string Name { get; set; } = null!;
+    [Required] public DateOnly DueDate { get; set; }
+    public MilestoneStatus Status { get; set; } = MilestoneStatus.Pending;
+    public string? Note { get; set; }
+}
+
+public class ProjectMilestoneUpdate : ProjectMilestoneCreate { }
+
+public record ProjectMilestoneDto
+{
+    public Guid Id { get; init; }
+    public Guid ProjectId { get; init; }
+    public string Name { get; init; } = null!;
+    public DateOnly DueDate { get; init; }
+    public MilestoneStatus Status { get; init; }
+    public string? Note { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset UpdatedAt { get; init; }
 }
 
 // ----------------------------------------------------------------------------
@@ -103,6 +178,20 @@ public class ResourceCreate
     public List<string> Skills { get; set; } = new();
     [Required, Range(0, 168)] public decimal AvailabilityHoursPerWeek { get; set; }
     public List<Weekday> WorkingDays { get; set; } = new();
+
+    // V002 - person panel groups (person_overview.png, new_person_part*.png).
+    public string? JobRole { get; set; }
+    public Guid? ManagerId { get; set; }
+    [Phone] public string? Phone { get; set; }
+    public List<string> SecondarySkills { get; set; } = new();
+    public List<string> SecurityClearances { get; set; } = new();
+    public DateOnly? SecurityNpcObtainedOn { get; set; }
+    public List<string> Certifications { get; set; } = new();
+    public string? TimeZone { get; set; }
+    public BookableStatus BookableStatus { get; set; } = BookableStatus.Bookable;
+    public string? PublicHolidayCalendar { get; set; }
+    [Range(0, double.MaxValue)] public decimal? DefaultRateHourly { get; set; }
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] public string? Colour { get; set; }
 }
 
 public class ResourceUpdate : ResourceCreate { }
@@ -122,6 +211,22 @@ public record ResourceDto
     public string? ImageUrl { get; init; }
     public decimal AvailabilityHoursPerWeek { get; init; }
     public IReadOnlyList<Weekday> WorkingDays { get; init; } = [];
+
+    // V002 - person panel groups.
+    public string? JobRole { get; init; }
+    public Guid? ManagerId { get; init; }
+    public string? ManagerName { get; init; }
+    public string? Phone { get; init; }
+    public IReadOnlyList<string> SecondarySkills { get; init; } = [];
+    public IReadOnlyList<string> SecurityClearances { get; init; } = [];
+    public DateOnly? SecurityNpcObtainedOn { get; init; }
+    public IReadOnlyList<string> Certifications { get; init; } = [];
+    public string? TimeZone { get; init; }
+    public BookableStatus BookableStatus { get; init; }
+    public string? PublicHolidayCalendar { get; init; }
+    public decimal? DefaultRateHourly { get; init; }
+    public string? Colour { get; init; }
+
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
 }
@@ -138,6 +243,41 @@ public record ResourceDetailDto : ResourceDto
 {
     public IReadOnlyList<AllocationDto> Allocations { get; init; } = [];
     public decimal AllocatedHoursPerWeek { get; init; }
+    public IReadOnlyList<TimeOffDto> TimeOff { get; init; } = [];
+}
+
+// ---- Time off (V002) --------------------------------------------------------
+public class TimeOffCreate
+{
+    [Required] public Guid ResourceId { get; set; }
+    [Required] public DateOnly StartDate { get; set; }
+    [Required] public DateOnly EndDate { get; set; }
+    public TimeOffType Type { get; set; } = TimeOffType.AnnualLeave;
+    [Range(0.01, 24)] public decimal? HoursPerDay { get; set; }
+    public string? Note { get; set; }
+}
+
+public class TimeOffUpdate
+{
+    [Required] public DateOnly StartDate { get; set; }
+    [Required] public DateOnly EndDate { get; set; }
+    public TimeOffType Type { get; set; } = TimeOffType.AnnualLeave;
+    [Range(0.01, 24)] public decimal? HoursPerDay { get; set; }
+    public string? Note { get; set; }
+}
+
+public record TimeOffDto
+{
+    public Guid Id { get; init; }
+    public Guid ResourceId { get; init; }
+    public string? ResourceName { get; init; }
+    public DateOnly StartDate { get; init; }
+    public DateOnly EndDate { get; init; }
+    public TimeOffType Type { get; init; }
+    public decimal? HoursPerDay { get; init; }
+    public string? Note { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset UpdatedAt { get; init; }
 }
 
 // ----------------------------------------------------------------------------
@@ -152,6 +292,8 @@ public class AllocationCreate
     [Required] public EffortUnit EffortUnit { get; set; }
     public string? RoleOnProject { get; set; }
     public bool? Billable { get; set; }
+    /// <summary>V002 - per-person billable rate (project Team tab).</summary>
+    [Range(0, double.MaxValue)] public decimal? HourlyRate { get; set; }
 }
 
 public class AllocationCreateFull : AllocationCreate
@@ -167,6 +309,8 @@ public class AllocationUpdate
     [Required] public EffortUnit EffortUnit { get; set; }
     public string? RoleOnProject { get; set; }
     public bool? Billable { get; set; }
+    /// <summary>V002 - per-person billable rate (project Team tab).</summary>
+    [Range(0, double.MaxValue)] public decimal? HourlyRate { get; set; }
 }
 
 public record AllocationDto
@@ -182,6 +326,7 @@ public record AllocationDto
     public EffortUnit EffortUnit { get; init; }
     public string? RoleOnProject { get; init; }
     public bool Billable { get; init; }
+    public decimal? HourlyRate { get; init; }
     public IReadOnlyList<string> Warnings { get; init; } = [];
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
@@ -228,8 +373,17 @@ public record GanttBarDto
 // Reports
 // ----------------------------------------------------------------------------
 public record UtilisationReportDto(DateOnly From, DateOnly To, IReadOnlyList<UtilisationRow> Rows);
+/// <param name="AvailableHours">Gross availability over the window.</param>
+/// <param name="TimeOffHours">Working-day hours lost to leave in the window (V002).</param>
+/// <param name="EffectiveCapacityHours">AvailableHours minus TimeOffHours (FR-REP-6).</param>
+/// <param name="Utilisation">
+/// AllocatedHours / AvailableHours. Deliberately measured against gross
+/// availability so the figure is unchanged by V002; the reference app reports
+/// effective capacity alongside it rather than folding leave into the ratio.
+/// </param>
 public record UtilisationRow(Guid ResourceId, string ResourceName, string? Department,
-    double AvailableHours, double AllocatedHours, double Utilisation);
+    double AvailableHours, double AllocatedHours, double Utilisation,
+    double TimeOffHours = 0, double EffectiveCapacityHours = 0);
 
 public record AllocationReportDto(DateOnly From, DateOnly To, IReadOnlyList<AllocationReportRow> Rows);
 public record AllocationReportRow(Guid ProjectId, string ProjectName, string? ClientName,

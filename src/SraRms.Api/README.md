@@ -32,7 +32,9 @@ environment; any other environment requires real Entra tokens.
 Auth/          Role + policy constants; DevAuthHandler (local-only bypass)
 Contracts/     DTOs matching the OpenAPI schemas, paging, entity->DTO mapping
 Controllers/   One controller per OpenAPI tag (Clients, Projects, Resources,
-               Allocations, Dashboard, Reports, ReferenceData)
+               Allocations, TimeOff, Dashboard, Reports, ReferenceData).
+               Project phases and milestones are sub-resources of
+               ProjectsController (/projects/{id}/phases, /milestones).
 Data/          EF Core entities, enums ([PgName] -> DB labels), AppDbContext
 Services/      AllocationService — window validation + over-allocation maths
 Program.cs     DI, EF/Npgsql + enum mapping, auth, RBAC policies, CORS, JSON

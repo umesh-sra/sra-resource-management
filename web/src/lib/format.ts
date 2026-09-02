@@ -1,4 +1,4 @@
-import type { ProjectStatus, ResourceStatus } from '@/types'
+import type { MilestoneStatus, ProjectStatus, ResourceStatus, TimeOffType } from '@/types'
 
 export const fmtDate = (iso?: string): string =>
   iso ? new Date(iso).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
@@ -37,6 +37,23 @@ const RESOURCE_STATUS: Record<ResourceStatus, { label: string; class: string }> 
   onLeave: { label: 'On leave', class: 'amber' },
 }
 export const resourceStatus = (s: ResourceStatus) => RESOURCE_STATUS[s] ?? { label: s, class: 'gray' }
+
+const TIME_OFF_LABELS: Record<TimeOffType, string> = {
+  annualLeave: 'Annual leave',
+  personal: 'Personal',
+  sick: 'Sick',
+  publicHoliday: 'Public holiday',
+  other: 'Other',
+}
+export const timeOffLabel = (t: TimeOffType): string => TIME_OFF_LABELS[t] ?? t
+
+const MILESTONE: Record<MilestoneStatus, { label: string; class: string }> = {
+  pending: { label: 'Pending', class: 'gray' },
+  met: { label: 'Met', class: 'green' },
+  missed: { label: 'Missed', class: 'red' },
+}
+export const milestoneLabel = (m: MilestoneStatus): string => MILESTONE[m]?.label ?? m
+export const milestoneBadge = (m: MilestoneStatus): string => MILESTONE[m]?.class ?? 'gray'
 
 export const initials = (name: string): string =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('')

@@ -33,6 +33,7 @@ tags:
   - name: Dashboard
   - name: Reports
   - name: Reference data
+  - name: Time off
 
 paths:
   # ---------------- Clients ----------------
@@ -316,6 +317,174 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
 
   # ---------------- Resources ----------------
+  /projects/{projectId}/phases:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Projects]
+      summary: List a project's phases
+      operationId: listProjectPhases
+      description: Roles - Administrator, General.
+      responses:
+        '200':
+          description: Phases ordered by sortOrder, then start date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectPhase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Projects]
+      summary: Add a phase to a project
+      operationId: createProjectPhase
+      description: Roles - Administrator. The phase must fall within the project window.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectPhaseCreate' }
+      responses:
+        '201':
+          description: Phase created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectPhase' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /projects/{projectId}/phases/{phaseId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: phaseId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Projects]
+      summary: Update a phase
+      operationId: updateProjectPhase
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectPhaseUpdate' }
+      responses:
+        '200':
+          description: Phase updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectPhase' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Projects]
+      summary: Delete a phase
+      operationId: deleteProjectPhase
+      description: Roles - Administrator.
+      responses:
+        '204': { description: Phase deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /projects/{projectId}/milestones:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Projects]
+      summary: List a project's milestones
+      operationId: listProjectMilestones
+      description: Roles - Administrator, General.
+      responses:
+        '200':
+          description: Milestones ordered by due date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectMilestone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Projects]
+      summary: Add a milestone to a project
+      operationId: createProjectMilestone
+      description: Roles - Administrator. The due date must fall within the project window.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectMilestoneCreate' }
+      responses:
+        '201':
+          description: Milestone created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectMilestone' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /projects/{projectId}/milestones/{milestoneId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: milestoneId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Projects]
+      summary: Update a milestone
+      operationId: updateProjectMilestone
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectMilestoneUpdate' }
+      responses:
+        '200':
+          description: Milestone updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectMilestone' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Projects]
+      summary: Delete a milestone
+      operationId: deleteProjectMilestone
+      description: Roles - Administrator.
+      responses:
+        '204': { description: Milestone deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /resources:
     get:
       tags: [Resources]
@@ -612,6 +781,112 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ---------------- Dashboard ----------------
+  /timeoff:
+    get:
+      tags: [Time off]
+      summary: List time off
+      operationId: listTimeOff
+      description: >
+        Roles - Administrator, General. `from`/`to` match by *overlap*: leave
+        spanning the window edges is included.
+      parameters:
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/TimeOffType' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paged time off.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimeOffPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Time off]
+      summary: Record time off
+      operationId: createTimeOff
+      description: >
+        Roles - Administrator. Overlapping leave for the same resource is
+        rejected with 409 so capacity is not double-counted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TimeOffCreate' }
+      responses:
+        '201':
+          description: Time off recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimeOff' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /timeoff/{timeOffId}:
+    parameters:
+      - name: timeOffId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Time off]
+      summary: Get one time-off record
+      operationId: getTimeOff
+      description: Roles - Administrator, General.
+      responses:
+        '200':
+          description: The time-off record.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimeOff' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Time off]
+      summary: Update a time-off record
+      operationId: updateTimeOff
+      description: Roles - Administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TimeOffUpdate' }
+      responses:
+        '200':
+          description: Time off updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimeOff' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Time off]
+      summary: Delete a time-off record
+      operationId: deleteTimeOff
+      description: Roles - Administrator.
+      responses:
+        '204': { description: Time off deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /dashboard/summary:
     get:
       tags: [Dashboard]
@@ -762,7 +1037,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [departments, locations, jobTitles, skills, resourceStatuses]
+          enum: [departments, locations, jobTitles, skills, resourceStatuses, activityTypes]
     get:
       tags: [Reference data]
       summary: List reference data values
@@ -930,6 +1205,21 @@ components:
     DayOfWeek:
       type: string
       enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+    BookableStatus:
+      type: string
+      enum: [bookable, nonBookable]
+    TimeOffType:
+      type: string
+      enum: [annualLeave, personal, sick, publicHoliday, other]
+    MilestoneStatus:
+      type: string
+      enum: [pending, met, missed]
+    ProjectBudgetType:
+      type: string
+      description: >
+        Which budget is in force. 'fee' requires `budget`; 'hours' requires
+        `budgetHours`; 'none' requires neither.
+      enum: [none, fee, hours]
     EffortUnit:
       type: string
       enum: [hoursPerWeek, percent]
@@ -993,6 +1283,22 @@ components:
         remaining: { type: number, format: double, minimum: 0 }
         billable: { type: boolean, default: true }
         status: { $ref: '#/components/schemas/ProjectStatus' }
+        budgetType: { $ref: '#/components/schemas/ProjectBudgetType' }
+        budgetHours:
+          type: number
+          format: double
+          minimum: 0
+          description: Hour budget; required when budgetType is 'hours'.
+        remainingHours: { type: number, format: double, minimum: 0 }
+        activityTypes:
+          type: array
+          description: Values from the activityTypes reference collection.
+          items: { type: string }
+        details: { type: string }
+        colour:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: Display colour used on the Schedule and Gantt.
     ProjectCreate:
       allOf:
         - $ref: '#/components/schemas/ProjectBase'
@@ -1025,6 +1331,71 @@ components:
             allocations:
               type: array
               items: { $ref: '#/components/schemas/Allocation' }
+            phases:
+              type: array
+              description: Ordered by sortOrder, then start date.
+              items: { $ref: '#/components/schemas/ProjectPhase' }
+            milestones:
+              type: array
+              description: Ordered by due date.
+              items: { $ref: '#/components/schemas/ProjectMilestone' }
+
+    # ---- Project phase / milestone ----
+    ProjectPhaseBase:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        colour: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+        sortOrder: { type: integer, default: 0 }
+    ProjectPhaseCreate:
+      allOf:
+        - $ref: '#/components/schemas/ProjectPhaseBase'
+        - type: object
+          required: [name, startDate, endDate]
+    ProjectPhaseUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ProjectPhaseBase'
+        - type: object
+          required: [name, startDate, endDate]
+    ProjectPhase:
+      allOf:
+        - $ref: '#/components/schemas/ProjectPhaseBase'
+        - type: object
+          required: [id, projectId, name, startDate, endDate]
+          properties:
+            id: { type: string, format: uuid }
+            projectId: { type: string, format: uuid }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    ProjectMilestoneBase:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        dueDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/MilestoneStatus' }
+        note: { type: string }
+    ProjectMilestoneCreate:
+      allOf:
+        - $ref: '#/components/schemas/ProjectMilestoneBase'
+        - type: object
+          required: [name, dueDate]
+    ProjectMilestoneUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ProjectMilestoneBase'
+        - type: object
+          required: [name, dueDate]
+    ProjectMilestone:
+      allOf:
+        - $ref: '#/components/schemas/ProjectMilestoneBase'
+        - type: object
+          required: [id, projectId, name, dueDate]
+          properties:
+            id: { type: string, format: uuid }
+            projectId: { type: string, format: uuid }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
     ProjectPage:
       type: object
       required: [items, meta]
@@ -1053,6 +1424,29 @@ components:
         workingDays:
           type: array
           items: { $ref: '#/components/schemas/DayOfWeek' }
+        jobRole:
+          type: string
+          description: Delivery role, distinct from primaryJobTitle (the HR job title).
+        managerId: { type: string, format: uuid }
+        phone: { type: string }
+        secondarySkills:
+          type: array
+          description: Secondary skills; `skills` carries the primary set.
+          items: { type: string }
+        securityClearances:
+          type: array
+          items: { type: string }
+        securityNpcObtainedOn: { type: string, format: date }
+        certifications:
+          type: array
+          items: { type: string }
+        timeZone:
+          type: string
+          description: IANA time-zone name, e.g. Australia/Adelaide.
+        bookableStatus: { $ref: '#/components/schemas/BookableStatus' }
+        publicHolidayCalendar: { type: string }
+        defaultRateHourly: { type: number, format: double, minimum: 0 }
+        colour: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
     ResourceCreate:
       allOf:
         - $ref: '#/components/schemas/ResourceBase'
@@ -1071,6 +1465,11 @@ components:
           properties:
             id: { type: string, format: uuid }
             imageUrl: { type: string, format: uri }
+            managerName:
+              type: string
+              description: >
+                Resolved manager name. Populated on the detail endpoint only;
+                list responses omit it rather than issue a query per row.
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
     ResourceSummary:
@@ -1093,6 +1492,9 @@ components:
               type: number
               format: double
               description: Sum of current allocations' effort in hours/week.
+            timeOff:
+              type: array
+              items: { $ref: '#/components/schemas/TimeOff' }
     ResourcePage:
       type: object
       required: [items, meta]
@@ -1208,6 +1610,52 @@ components:
         effortUnit: { $ref: '#/components/schemas/EffortUnit' }
         overAllocated: { type: boolean }
 
+    # ---- Time off ----
+    TimeOffBase:
+      type: object
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        type: { $ref: '#/components/schemas/TimeOffType' }
+        hoursPerDay:
+          type: number
+          format: double
+          minimum: 0.01
+          maximum: 24
+          description: Omit for a full working day; set for partial-day leave.
+        note: { type: string }
+    TimeOffCreate:
+      allOf:
+        - $ref: '#/components/schemas/TimeOffBase'
+        - type: object
+          required: [resourceId, startDate, endDate]
+          properties:
+            resourceId: { type: string, format: uuid }
+    TimeOffUpdate:
+      allOf:
+        - $ref: '#/components/schemas/TimeOffBase'
+        - type: object
+          required: [startDate, endDate]
+    TimeOff:
+      allOf:
+        - $ref: '#/components/schemas/TimeOffBase'
+        - type: object
+          required: [id, resourceId, startDate, endDate]
+          properties:
+            id: { type: string, format: uuid }
+            resourceId: { type: string, format: uuid }
+            resourceName: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    TimeOffPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TimeOff' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
     # ---- Reports ----
     UtilisationReport:
       type: object
@@ -1225,6 +1673,17 @@ components:
               availableHours: { type: number, format: double }
               allocatedHours: { type: number, format: double }
               utilisation: { type: number, format: double }
+              timeOffHours:
+                type: number
+                format: double
+                description: Working-day hours lost to leave in the window (V002).
+              effectiveCapacityHours:
+                type: number
+                format: double
+                description: >
+                  availableHours minus timeOffHours. `utilisation` is deliberately
+                  measured against gross availableHours, not this figure, so the
+                  ratio is unchanged by the V002 model.
     AllocationReport:
       type: object
       properties:

@@ -2,17 +2,22 @@
 import { computed, onMounted, ref } from 'vue'
 import { clientsApi, projectsApi, resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
-import type { Client, EffortUnit, Project, ProjectDetail, ProjectStatus, Resource } from '@/types'
+import type {
+  Client, EffortUnit, MilestoneStatus, Project, ProjectBudgetType, ProjectDetail,
+  ProjectStatus, Resource,
+} from '@/types'
 import { useToastStore } from '@/stores/toast'
 import ModalDialog from './ModalDialog.vue'
 import AppAvatar from './AppAvatar.vue'
 
 /**
  * Create / edit a project through the reference's tabbed dialog
- * (screens/new_project*.png): Overview, Budget, Team.
+ * (screens/new_project*.png): Overview, Budget, Team, Phases, Milestones.
  *
- * The reference's Phases and Milestones tabs are omitted — neither exists in
- * the SRA-RMS data model or `docs/openapi.yaml`.
+ * Phases and Milestones are backed by the V002 model (Requirements §3.6/§3.7).
+ * Both are child records of a saved project, so on a *new* project they are
+ * staged here and POSTed after the project exists — the same pattern the Team
+ * tab already uses for allocations.
  */
 const props = defineProps<{ project?: ProjectDetail | null }>()
 const emit = defineEmits<{ close: []; saved: [project: Project] }>()
@@ -20,7 +25,7 @@ const emit = defineEmits<{ close: []; saved: [project: Project] }>()
 const toast = useToastStore()
 const editing = computed(() => !!props.project)
 
-type Tab = 'overview' | 'budget' | 'team'
+type Tab = 'overview' | 'budget' | 'team' | 'phases' | 'milestones'
 const tab = ref<Tab>('overview')
 
 const p = props.project
@@ -32,9 +37,52 @@ const form = ref({
   endDate: p?.endDate ?? '',
   billable: p?.billable ?? true,
   status: (p?.status ?? 'planned') as ProjectStatus,
-  budgetMode: (p?.budget != null ? 'fee' : 'none') as 'none' | 'fee',
+  // budgetType comes from the server on edit; fall back to inferring it from
+  // whichever amount is present so V001-era rows open on the right mode.
+  budgetMode: (p?.budgetType ?? (p?.budget != null ? 'fee' : 'none')) as ProjectBudgetType,
   budget: p?.budget ?? null as number | null,
   remaining: p?.remaining ?? null as number | null,
+  budgetHours: p?.budgetHours ?? null as number | null,
+  remainingHours: p?.remainingHours ?? null as number | null,
+  details: p?.details ?? '',
+})
+
+/** Phase / milestone rows staged on the dialog (FR-PHASE-1, FR-MILE-1). */
+interface PhaseRow { id?: string; name: string; startDate: string; endDate: string; sortOrder: number }
+interface MilestoneRow { id?: string; name: string; dueDate: string; status: MilestoneStatus }
+const phases = ref<PhaseRow[]>(
+  (p?.phases ?? []).map((x) => ({
+    id: x.id, name: x.name, startDate: x.startDate, endDate: x.endDate, sortOrder: x.sortOrder,
+  })),
+)
+const milestones = ref<MilestoneRow[]>(
+  (p?.milestones ?? []).map((x) => ({ id: x.id, name: x.name, dueDate: x.dueDate, status: x.status })),
+)
+
+function addPhase() {
+  phases.value.push({
+    name: '', startDate: form.value.startDate, endDate: form.value.endDate,
+    sortOrder: phases.value.length + 1,
+  })
+}
+function removePhase(i: number) { phases.value.splice(i, 1) }
+function addMilestone() {
+  milestones.value.push({ name: '', dueDate: form.value.startDate, status: 'pending' })
+}
+function removeMilestone(i: number) { milestones.value.splice(i, 1) }
+
+/** A phase/milestone must sit inside the project window (FR-PHASE-4, FR-MILE-4). */
+const outOfWindow = computed(() => {
+  const { startDate: s, endDate: e } = form.value
+  if (!s || !e) return { phases: [] as number[], milestones: [] as number[] }
+  return {
+    phases: phases.value
+      .map((x, i) => (x.startDate && x.endDate && (x.startDate < s || x.endDate > e) ? i : -1))
+      .filter((i) => i >= 0),
+    milestones: milestones.value
+      .map((x, i) => (x.dueDate && (x.dueDate < s || x.dueDate > e) ? i : -1))
+      .filter((i) => i >= 0),
+  }
 })
 
 const clients = ref<Client[]>([])
@@ -82,8 +130,11 @@ const valid = computed(() =>
 /** Tabs carry a dot when they hold something the user should notice. */
 const tabState = computed(() => ({
   overview: !valid.value,
-  budget: form.value.budgetMode === 'fee' && form.value.budget == null,
+  budget: (form.value.budgetMode === 'fee' && form.value.budget == null)
+       || (form.value.budgetMode === 'hours' && form.value.budgetHours == null),
   team: team.value.some((t) => !t.resourceId),
+  phases: phases.value.some((x) => !x.name.trim()) || outOfWindow.value.phases.length > 0,
+  milestones: milestones.value.some((x) => !x.name.trim()) || outOfWindow.value.milestones.length > 0,
 }))
 
 async function save() {
@@ -97,8 +148,12 @@ async function save() {
       clientId: f.clientId,
       startDate: f.startDate,
       endDate: f.endDate,
+      budgetType: f.budgetMode,
       budget: f.budgetMode === 'fee' ? num(f.budget) : undefined,
       remaining: f.budgetMode === 'fee' ? num(f.remaining) : undefined,
+      budgetHours: f.budgetMode === 'hours' ? num(f.budgetHours) : undefined,
+      remainingHours: f.budgetMode === 'hours' ? num(f.remainingHours) : undefined,
+      details: f.details.trim() || undefined,
       billable: f.billable,
       status: f.status,
     }
@@ -123,6 +178,28 @@ async function save() {
       } catch (e) {
         const who = resourceById.value.get(row.resourceId)?.name ?? 'a team member'
         toast.error(e instanceof ApiError ? `${who}: ${e.message}` : `Could not allocate ${who}`)
+      }
+    }
+
+    // Phases and milestones: create the new ones, update the ones already saved.
+    for (const row of phases.value.filter((x) => x.name.trim())) {
+      const body = {
+        name: row.name.trim(), startDate: row.startDate, endDate: row.endDate, sortOrder: row.sortOrder,
+      }
+      try {
+        if (row.id) await projectsApi.updatePhase(saved.id, row.id, body)
+        else await projectsApi.createPhase(saved.id, body)
+      } catch (e) {
+        toast.error(e instanceof ApiError ? `Phase "${row.name}": ${e.message}` : `Could not save phase "${row.name}"`)
+      }
+    }
+    for (const row of milestones.value.filter((x) => x.name.trim())) {
+      const body = { name: row.name.trim(), dueDate: row.dueDate, status: row.status }
+      try {
+        if (row.id) await projectsApi.updateMilestone(saved.id, row.id, body)
+        else await projectsApi.createMilestone(saved.id, body)
+      } catch (e) {
+        toast.error(e instanceof ApiError ? `Milestone "${row.name}": ${e.message}` : `Could not save milestone "${row.name}"`)
       }
     }
 
@@ -154,6 +231,12 @@ async function save() {
           </button>
           <button class="tab" role="tab" :aria-selected="tab === 'team'" :class="{ active: tab === 'team' }" @click="tab = 'team'">
             Team<span v-if="tabState.team" class="dot" aria-hidden="true" />
+          </button>
+          <button class="tab" role="tab" :aria-selected="tab === 'phases'" :class="{ active: tab === 'phases' }" @click="tab = 'phases'">
+            Phases<span v-if="tabState.phases" class="dot" aria-hidden="true" />
+          </button>
+          <button class="tab" role="tab" :aria-selected="tab === 'milestones'" :class="{ active: tab === 'milestones' }" @click="tab = 'milestones'">
+            Milestones<span v-if="tabState.milestones" class="dot" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -208,6 +291,7 @@ async function save() {
       <div class="segmented" role="group" aria-label="Budget type" style="margin-bottom: 18px">
         <button :aria-pressed="form.budgetMode === 'none'" @click="form.budgetMode = 'none'">No budget</button>
         <button :aria-pressed="form.budgetMode === 'fee'" @click="form.budgetMode = 'fee'">Budget by fee</button>
+        <button :aria-pressed="form.budgetMode === 'hours'" @click="form.budgetMode = 'hours'">Budget by hours</button>
       </div>
 
       <template v-if="form.budgetMode === 'fee'">
@@ -220,11 +304,21 @@ async function save() {
           The dashboard flags a project as at risk once ≥90% is consumed.
         </p>
       </template>
+      <template v-else-if="form.budgetMode === 'hours'">
+        <div class="form-row">
+          <div class="field"><label for="pj-bhours">Budget (hours)</label><input id="pj-bhours" class="input" type="number" min="0" v-model.number="form.budgetHours" /></div>
+          <div class="field"><label for="pj-rhours">Remaining (hours)</label><input id="pj-rhours" class="input" type="number" min="0" v-model.number="form.remainingHours" /></div>
+        </div>
+        <p class="muted hint">
+          Leave <em>Remaining</em> blank on a new project and it starts equal to the hour budget.
+        </p>
+      </template>
       <p v-else class="muted">No budget is tracked for this project.</p>
 
       <div class="note-box">
-        Hour-based budgets and per-person charge-out rates are not part of the SRA-RMS data model —
-        how “remaining” is derived is still an open question in <code>docs/Requirements.md</code> §8.
+        Per-person charge-out rates are recorded on each allocation (Team tab). How “remaining”
+        is drawn down is still an open question in <code>docs/Requirements.md</code> §8 — it is
+        maintained by hand until timesheet actuals exist.
       </div>
     </div>
 
@@ -269,6 +363,72 @@ async function save() {
       <p v-if="!team.length" class="muted" style="margin-top: 16px">No one assigned yet.</p>
     </div>
 
+    <!-- Phases ----------------------------------------------------------- -->
+    <div v-show="tab === 'phases'" role="tabpanel">
+      <button class="btn btn-outline" @click="addPhase">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        New Phase
+      </button>
+
+      <p v-if="!phases.length" class="muted" style="margin-top: 16px">
+        No phases yet. A phase is a named, dated stage of the project — Discovery, Build, UAT.
+      </p>
+
+      <div v-for="(row, i) in phases" :key="i" class="sub-row">
+        <div class="field" style="flex: 2 1 180px">
+          <label :for="`ph-name-${i}`">Name</label>
+          <input :id="`ph-name-${i}`" class="input" v-model="row.name" placeholder="Discovery" />
+        </div>
+        <div class="field" style="flex: 1 1 130px">
+          <label :for="`ph-start-${i}`">Start</label>
+          <input :id="`ph-start-${i}`" class="input" type="date" v-model="row.startDate" />
+        </div>
+        <div class="field" style="flex: 1 1 130px">
+          <label :for="`ph-end-${i}`">End</label>
+          <input :id="`ph-end-${i}`" class="input" type="date" v-model="row.endDate" />
+        </div>
+        <button class="btn btn-ghost btn-sm" :aria-label="`Remove phase ${i + 1}`" @click="removePhase(i)">✕</button>
+        <p v-if="outOfWindow.phases.includes(i)" class="row-error">
+          Outside the project window ({{ form.startDate || '—' }} – {{ form.endDate || '—' }}).
+        </p>
+      </div>
+    </div>
+
+    <!-- Milestones --------------------------------------------------------- -->
+    <div v-show="tab === 'milestones'" role="tabpanel">
+      <button class="btn btn-outline" @click="addMilestone">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        New Milestone
+      </button>
+
+      <p v-if="!milestones.length" class="muted" style="margin-top: 16px">
+        No milestones yet. A milestone is a dated checkpoint — Design sign-off, Go live.
+      </p>
+
+      <div v-for="(row, i) in milestones" :key="i" class="sub-row">
+        <div class="field" style="flex: 2 1 180px">
+          <label :for="`ms-name-${i}`">Name</label>
+          <input :id="`ms-name-${i}`" class="input" v-model="row.name" placeholder="Go live" />
+        </div>
+        <div class="field" style="flex: 1 1 130px">
+          <label :for="`ms-due-${i}`">Due</label>
+          <input :id="`ms-due-${i}`" class="input" type="date" v-model="row.dueDate" />
+        </div>
+        <div class="field" style="flex: 1 1 120px">
+          <label :for="`ms-status-${i}`">Status</label>
+          <select :id="`ms-status-${i}`" class="select" v-model="row.status">
+            <option value="pending">Pending</option>
+            <option value="met">Met</option>
+            <option value="missed">Missed</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost btn-sm" :aria-label="`Remove milestone ${i + 1}`" @click="removeMilestone(i)">✕</button>
+        <p v-if="outOfWindow.milestones.includes(i)" class="row-error">
+          Outside the project window ({{ form.startDate || '—' }} – {{ form.endDate || '—' }}).
+        </p>
+      </div>
+    </div>
+
     <template #footer>
       <span class="note">Over-allocation is flagged, not blocked (FR-ALL-6).</span>
       <button class="btn" @click="emit('close')">Cancel</button>
@@ -280,6 +440,13 @@ async function save() {
 </template>
 
 <style scoped>
+.sub-row {
+  display: flex; flex-wrap: wrap; gap: 0 12px; align-items: flex-end;
+  padding: 12px 0; border-bottom: 1px solid var(--gray-100);
+}
+.sub-row .field { margin-bottom: 0; }
+.sub-row > .btn-ghost { margin-bottom: 4px; }
+.row-error { flex: 1 0 100%; margin: 6px 0 0; color: var(--red-700); font-size: 12.5px; }
 .dialog-tabs { padding: 0 20px; border-bottom: 1px solid var(--border); }
 .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
 .hint { font-size: 12px; margin: 6px 0 0; }

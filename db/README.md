@@ -13,6 +13,15 @@ db/
                 dev_seed.sql is LOCAL-DEV ONLY (it truncates business tables).
 ```
 
+## Migration history
+
+| Version | Script | What it adds |
+| --- | --- | --- |
+| 001 | `V001__initial_schema.sql` | Core schema: client, project, resource, allocation, reference pick-lists. |
+| 002 | `V002__reference_app_model.sql` | Reference-app model: `project_phase`, `project_milestone`, `time_off`, `activity_type`; richer resource profile; project budget type + hour budgets; per-allocation rate. Backward-compatible (all additions are nullable or defaulted). |
+
+Applied versions are recorded in the `schema_migration` table.
+
 ## Design notes
 
 - **PostgreSQL 13+** (relies on `gen_random_uuid()` and core enum/array features).
@@ -24,10 +33,12 @@ db/
   table (NFR-AUD-1). The API sets `*_by`; `updated_at` is maintained by a trigger.
   A full before/after audit *history* table is deliberately **not** included yet —
   see open question #6 in `docs/Requirements.md`.
-- **Referential integrity**: foreign keys are `ON DELETE RESTRICT`. The
+- **Referential integrity**: foreign keys are `ON DELETE RESTRICT`, with one
+  deliberate exception — `resource.manager_id` is `ON DELETE SET NULL`, because a
+  manager reference is descriptive and should not block deleting that person. The
   `?cascade=true` behaviour (FR-DEL) is implemented in the application by deleting
   dependents first, not by DB-level cascade.
-- **Reference data** (`department`, `location`, `job_title`, `skill`) are
+- **Reference data** (`department`, `location`, `job_title`, `skill`, `activity_type`) are
   admin-maintained pick-lists. Resources store the chosen *values* as `text` /
   `text[]`, mirroring the API (department/location are strings, skills a string
   array) — so these tables are not FK targets.
@@ -42,6 +53,7 @@ PostgreSQL reachable on `localhost:5432`.
 
 ```bash
 psql "postgresql://postgres@localhost:5432/sra_rms" -f migrations/V001__initial_schema.sql
+psql "postgresql://postgres@localhost:5432/sra_rms" -f migrations/V002__reference_app_model.sql
 psql "postgresql://postgres@localhost:5432/sra_rms" -f seed/dev_seed.sql   # local dev only
 ```
 
@@ -53,7 +65,7 @@ Windows/macOS Docker Desktop):
 ```bash
 docker run --rm -i -e PGPASSWORD="<password>" \
   -v "$PWD":/db postgres:16 \
-  psql -h host.docker.internal -U postgres -d sra_rms -f /db/migrations/V001__initial_schema.sql
+  psql -h host.docker.internal -U postgres -d sra_rms -v ON_ERROR_STOP=1 \n  -f /db/migrations/V001__initial_schema.sql \n  -f /db/migrations/V002__reference_app_model.sql
 ```
 
 Create the database first if it does not exist:

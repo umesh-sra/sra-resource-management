@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { allocationsApi, dashboardApi, resourcesApi } from '@/api'
+import { allocationsApi, dashboardApi, resourcesApi, timeOffApi } from '@/api'
 import { ApiError } from '@/api/http'
 import type { Allocation, GanttBar, GanttResponse, GanttRow, Resource } from '@/types'
-import { addDays, effortPerDay, isoDate, parseDate, startOfWeek } from '@/lib/format'
+import { addDays, effortPerDay, isoDate, parseDate, startOfWeek, timeOffLabel } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import TimelineGrid from '@/components/TimelineGrid.vue'
 import AppAvatar from '@/components/AppAvatar.vue'
@@ -65,7 +65,7 @@ const rows = computed<GanttRow[]>(() => {
 async function load() {
   loading.value = true
   try {
-    const [gantt, people] = await Promise.all([
+    const [gantt, people, leave] = await Promise.all([
       dashboardApi.gantt({
         view: 'resources', from: from.value, to: to.value,
         department: departmentFilter.value || undefined,
@@ -73,8 +73,32 @@ async function load() {
       resources.value.length
         ? Promise.resolve({ items: resources.value })
         : resourcesApi.list({ pageSize: 200, sort: 'name' }),
+      timeOffApi.list({ from: from.value, to: to.value, pageSize: 200 }),
     ])
-    data.value = gantt
+
+    // The gantt endpoint returns allocations only; merge leave in as extra bars
+    // so a person's row shows work and time off together (FR-TIMEOFF-5).
+    const leaveByResource = new Map<string, GanttBar[]>()
+    for (const t of leave.items) {
+      const bar: GanttBar = {
+        refId: t.id,
+        label: t.hoursPerDay ? `${timeOffLabel(t.type)} (${t.hoursPerDay}h/day)` : timeOffLabel(t.type),
+        start: t.startDate,
+        end: t.endDate,
+        kind: 'timeOff',
+      }
+      const list = leaveByResource.get(t.resourceId) ?? []
+      list.push(bar)
+      leaveByResource.set(t.resourceId, list)
+    }
+
+    data.value = {
+      ...gantt,
+      rows: gantt.rows.map((r) => {
+        const extra = leaveByResource.get(r.id)
+        return extra ? { ...r, bars: [...r.bars, ...extra] } : r
+      }),
+    }
     resources.value = people.items
   } catch (e) {
     toast.error(e instanceof ApiError ? e.message : 'Failed to load the schedule')
@@ -95,6 +119,8 @@ watch(departmentFilter, load)
 /** Bars carry the allocation id, so clicking one opens that allocation. */
 async function openBar(bar: GanttBar) {
   if (!bar.refId) return
+  // Leave bars carry a time-off id, not an allocation id — they are not editable here.
+  if (bar.kind === 'timeOff') return
   try {
     const page = await allocationsApi.list({ pageSize: 200 })
     const found = page.items.find((a) => a.id === bar.refId)
@@ -175,9 +201,7 @@ onMounted(load)
     </TimelineGrid>
 
     <p class="muted legend">
-      Bars in red exceed the person's weekly availability — over-allocation is flagged, not blocked (FR-ALL-6).
-      Select a bar to edit that allocation.
-    </p>
+      Bars in red exceed the person's weekly availability — over-allocation is flagged, not blocked (FR-ALL-6). Select a bar to edit that allocation. Hatched blocks are time off (FR-TIMEOFF-5).</p>
   </div>
 
   <AllocationEditModal

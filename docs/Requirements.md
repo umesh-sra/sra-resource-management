@@ -1,8 +1,14 @@
 # SRA Resource Management System — Software Requirements Specification
 
-**Document version:** 1.0 (Draft)
-**Date:** 29 June 2026
+**Document version:** 1.1 (Draft)
+**Date:** 2 September 2026
 **Status:** Draft for review
+
+> **v1.1** extends the data model (§3) to cover the reference application captured
+> in `screens/`: project **phases** and **milestones**, **time off**, activity
+> types, a richer person profile, and hour-based project budgets. New requirement
+> groups: §4.10 FR-PHASE, §4.11 FR-MILE, §4.12 FR-TIMEOFF, plus FR-RES-8/9,
+> FR-PRJ-8/9 and FR-REP-6. Delivered by `db/migrations/V002__reference_app_model.sql`.
 **Owner:** Umesh Kodippili (umesh.kodippili@sra.com.au)
 
 ---
@@ -24,6 +30,8 @@ SRA-RMS provides a single place to record clients and their projects, maintain a
 
 Out of scope for the initial release: time-sheeting/actuals capture, invoicing, payroll integration, and a public-facing portal. These may be considered in later phases.
 
+Time off is recorded (§3.8) so that leave is visible on the Schedule and reduces reported capacity, but it is **not** a leave-approval workflow: there is no request, approval or balance-accrual process.
+
 ### 1.3 Background
 
 SRA is a custom software company that builds bespoke solutions for its clients. Effective scheduling of a limited pool of people across concurrent client projects is a core operational need. SRA-RMS replaces ad-hoc spreadsheets with a governed, role-based application backed by a relational database.
@@ -36,6 +44,10 @@ SRA is a custom software company that builds bespoke solutions for its clients. 
 | Allocation | An assignment of a resource to a project for a defined period and effort. |
 | Utilisation | The proportion of a resource's available hours that are allocated. |
 | Billable | Whether work on a project can be charged to the client. |
+| Phase | A named, dated stage within a project (e.g. Discovery, Build). |
+| Milestone | A dated checkpoint on a project; a point, not a range. |
+| Time off | Recorded leave for a resource over a date range. |
+| Effective capacity | Gross availability for a period, less time off. |
 | AD | Microsoft Active Directory / Entra ID. |
 | RBAC | Role-Based Access Control. |
 | FTE | Full-Time Equivalent. |
@@ -47,6 +59,7 @@ SRA is a custom software company that builds bespoke solutions for its clients. 
 - Project notes: `notes/SRA Resource Management System.md`, `notes/Client.md`, `notes/Project.md`, `notes/Resource.md`.
 - OpenAPI specification: `docs/openapi.yaml` (companion artifact to this document).
 - SRA brand assets and guidelines: `brand/`.
+- Reference application screens: `screens/` (git-ignored; they contain third-party staff and client data). The screens drive the information architecture and the §3 model added in v1.1.
 
 ---
 
@@ -96,6 +109,8 @@ Modern evergreen browsers (Chrome, Edge, Firefox, Safari — current and prior m
 
 The core domain comprises four entities. A **Client** has zero or more **Projects**; a **Project** has zero or more **Allocations**; a **Resource** has zero or more **Allocations**. An Allocation is the association between one Resource and one Project.
 
+Four further entities were added in v1.1: a **Project** also has zero or more **Phases** (§3.6) and **Milestones** (§3.7); a **Resource** has zero or more **Time off** records (§3.8); and **Activity types** (§3.9) join the admin-maintained pick-lists.
+
 ### 3.1 Client
 
 | Attribute | Type | Notes |
@@ -118,6 +133,14 @@ The core domain comprises four entities. A **Client** has zero or more **Project
 | Billable | boolean | Whether the project is billable. |
 | Team (resources) | relation | Resources allocated via allocations. |
 | Gantt | derived | Timeline view derived from project dates and allocations. |
+| Budget type | enum | `none`, `fee`, or `hours` — which budget applies (v1.1). |
+| Budget hours | number | Hour budget; required when budget type is `hours` (v1.1). |
+| Remaining hours | number | Remaining hour budget (v1.1). |
+| Activity types | tags | Values from the Activity type pick-list (§3.9, v1.1). |
+| Details | text | Free-text project description (v1.1). |
+| Colour | text | Display colour (`#RRGGBB`) used on Schedule and Gantt (v1.1). |
+| Phases | relation | Zero or more phases (§3.6, v1.1). |
+| Milestones | relation | Zero or more milestones (§3.7, v1.1). |
 
 ### 3.3 Resource (person)
 
@@ -135,6 +158,25 @@ The core domain comprises four entities. A **Client** has zero or more **Project
 | Image | image | Profile photo. |
 | Availability | number | Hours available per week. |
 | Working days | set | Days the resource works (e.g. Mon–Wed). |
+| Job role | text | Delivery role (e.g. Tech Lead), distinct from the job title (v1.1). |
+| Manager | relation | Another resource; optional, self-referencing (v1.1). |
+| Phone | text | Contact number (v1.1). |
+| Secondary skills | tags | Secondary skill set; *Skills* above is the primary set (v1.1). |
+| Security clearances | tags | Held clearances (v1.1). |
+| Security NPC obtained | date | Date the NPC was obtained (v1.1). |
+| Certifications | tags | Staff certifications (v1.1). |
+| Time zone | text | IANA name, e.g. `Australia/Adelaide` (v1.1). |
+| Bookable status | enum | `bookable` / `nonBookable` (v1.1). |
+| Public holiday calendar | text | Region key used to expand public holidays (v1.1). |
+| Default rate | money | Default hourly rate; overridable per allocation (v1.1). |
+| Colour | text | Display colour (`#RRGGBB`) used on the Schedule (v1.1). |
+
+> **Not modelled.** The reference application also shows a *Permissions Role*,
+> *Invitation Status* and *Last Login* on the person record. These are omitted
+> deliberately: authentication is delegated to Entra ID and roles are derived from
+> AD group membership (FR-AUTH-1/2), so an application-local permissions column
+> would contradict the authorisation design and become a second, stale source of
+> truth. Effective roles are resolved per request from the token.
 
 ### 3.4 Allocation
 
@@ -147,6 +189,7 @@ The core domain comprises four entities. A **Client** has zero or more **Project
 | Allocation (effort) | number/percent | Hours per week or percentage of availability. |
 | Role on project | text | Optional. |
 | Billable | boolean | Defaults from the project; overridable. |
+| Hourly rate | money | Per-person billable rate for this allocation; defaults from the resource's default rate (v1.1). |
 
 ### 3.5 Data integrity rules
 
@@ -155,8 +198,62 @@ The core domain comprises four entities. A **Client** has zero or more **Project
 - Deleting a client with existing projects, or a project/resource with existing allocations, is prevented or cascaded explicitly (see FR-DEL).
 - Email addresses and project codes are unique.
 - Total concurrent allocation for a resource should not silently exceed its weekly availability; over-allocation is flagged.
+- *(v1.1)* A phase's date range and a milestone's due date must fall within the owning project's window.
+- *(v1.1)* A project's budget type and its budget fields must agree: `fee` requires a budget amount, `hours` requires budget hours, `none` requires neither.
+- *(v1.1)* Time-off records for the same resource must not overlap, or leave would be double-counted against capacity.
+- *(v1.1)* A resource may not be its own manager. A manager reference is descriptive, so deleting a manager unlinks their reports rather than being blocked.
+- *(v1.1)* Deleting a project with phases or milestones, or a resource with time off, follows the same block-or-cascade rule as allocations (FR-DEL).
 
 ---
+
+### 3.6 Project phase *(v1.1)*
+
+A named, dated stage within a project.
+
+| Attribute | Type | Notes |
+|-----------|------|-------|
+| Project | relation | Required; the owning project. |
+| Name | text | Required. |
+| Start date | date | Required. |
+| End date | date | Required; on or after start date. |
+| Colour | text | Optional display colour (`#RRGGBB`). |
+| Sort order | integer | Display order within the project. |
+
+Phases may overlap one another and need not tile the project window.
+
+### 3.7 Project milestone *(v1.1)*
+
+A dated checkpoint on a project.
+
+| Attribute | Type | Notes |
+|-----------|------|-------|
+| Project | relation | Required; the owning project. |
+| Name | text | Required. |
+| Due date | date | Required; must fall within the project window. |
+| Status | enum | `pending`, `met`, `missed`. |
+| Note | text | Free text. |
+
+### 3.8 Time off *(v1.1)*
+
+Recorded leave for one resource over a date range.
+
+| Attribute | Type | Notes |
+|-----------|------|-------|
+| Resource | relation | Required. |
+| Start date | date | Required. |
+| End date | date | Required; on or after start date. |
+| Type | enum | `annualLeave`, `personal`, `sick`, `publicHoliday`, `other`. |
+| Hours per day | number | Optional; omitted means the whole working day. |
+| Note | text | Free text. |
+
+Time off does **not** block allocation — consistent with over-allocation being a
+warning rather than an error (FR-ALL-6) — but it reduces effective capacity in
+reporting (FR-REP-6) and is drawn on the Schedule.
+
+### 3.9 Activity type *(v1.1)*
+
+An admin-maintained pick-list value (same shape as department / location / job
+title / skill, §4.9). Projects store the chosen values as tags, not foreign keys.
 
 ## 4. Functional requirements
 
@@ -192,6 +289,8 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 | FR-PRJ-5 | Delete a project only when it has no allocations, or with explicit confirmation/cascade. | Must | Administrator |
 | FR-PRJ-6 | Validate that end date is on or after start date. | Must | Administrator |
 | FR-PRJ-7 | Track remaining budget against total budget. | Should | Administrator |
+| FR-PRJ-8 | Support a project budget expressed as no budget, a fee, or a number of hours, and validate that the chosen type has its matching amount. | Should | Administrator |
+| FR-PRJ-9 | Record activity types, free-text details and a display colour on a project. | Could | Administrator |
 
 ### 4.4 Resource management
 
@@ -203,7 +302,9 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 | FR-RES-4 | Update a resource, including skills, availability, and working days. | Must | Administrator |
 | FR-RES-5 | Upload and display a resource profile image. | Should | Administrator |
 | FR-RES-6 | Set a resource's status (Active, Inactive, On leave). | Must | Administrator |
-| FR-RES-7 | Delete a resource only when it has no allocations, or with explicit confirmation. | Must | Administrator |
+| FR-RES-7 | Delete a resource only when it has no allocations or time off, or with explicit confirmation. | Must | Administrator |
+| FR-RES-8 | Record the extended person profile in §3.3: job role, phone, secondary skills, security clearances and NPC date, certifications, time zone, bookable status, public holiday calendar, default rate and display colour. | Should | Administrator |
+| FR-RES-9 | Record a resource's manager as a reference to another resource, rejecting self-reference; deleting a manager unlinks their reports rather than being blocked. | Should | Administrator |
 
 ### 4.5 Allocation management
 
@@ -216,6 +317,7 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 | FR-ALL-5 | Validate allocation dates against the project window. | Must | Administrator |
 | FR-ALL-6 | Detect and warn when an allocation causes a resource to exceed its weekly availability. | Should | Administrator |
 | FR-ALL-7 | Respect a resource's working days when computing effort and over-allocation. | Could | — |
+| FR-ALL-8 | Record a per-person hourly rate on an allocation, defaulting from the resource's default rate. | Could | Administrator |
 
 ### 4.6 Dashboard
 
@@ -243,14 +345,45 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 | FR-REP-3 | Generate a budget consumption report (budget vs remaining) by project and client. | Should | Report |
 | FR-REP-4 | Generate a billable vs non-billable summary. | Should | Report |
 | FR-REP-5 | Export reports to CSV (and optionally PDF/Excel). | Should | Report |
+| FR-REP-6 | Report time off and effective capacity (availability less time off) alongside utilisation. Utilisation itself remains the ratio of allocated hours to **gross** availability, so the figure is comparable across releases. | Should | Report |
 
 ### 4.9 Reference data and cross-cutting
 
 | ID | Requirement | Priority | Roles |
 |----|-------------|----------|-------|
-| FR-REF-1 | Maintain reference data: departments, locations, job titles, skill tags, resource statuses. | Should | Administrator |
+| FR-REF-1 | Maintain reference data: departments, locations, job titles, skill tags, resource statuses, activity types. | Should | Administrator |
 | FR-DEL | For every delete, enforce referential integrity: block when dependents exist, or require explicit confirmation with defined cascade behaviour. | Must | Administrator |
 | FR-SRCH | Provide consistent search, filter, sort, and pagination semantics across all list endpoints. | Must | Admin, General |
+
+### 4.10 Project phases *(v1.1)*
+
+| ID | Requirement | Priority | Roles |
+|----|-------------|----------|-------|
+| FR-PHASE-1 | Add a named, dated phase to a project. | Should | Administrator |
+| FR-PHASE-2 | List a project's phases in display order. | Should | Admin, General |
+| FR-PHASE-3 | Update or delete a phase. | Should | Administrator |
+| FR-PHASE-4 | Validate that a phase's date range falls within the project window and that its end date is on or after its start date. | Should | Administrator |
+| FR-PHASE-5 | Show phases on the project timeline. | Could | Admin, General |
+
+### 4.11 Project milestones *(v1.1)*
+
+| ID | Requirement | Priority | Roles |
+|----|-------------|----------|-------|
+| FR-MILE-1 | Add a dated milestone to a project, with a status of pending, met or missed. | Should | Administrator |
+| FR-MILE-2 | List a project's milestones in due-date order. | Should | Admin, General |
+| FR-MILE-3 | Update or delete a milestone. | Should | Administrator |
+| FR-MILE-4 | Validate that a milestone's due date falls within the project window. | Should | Administrator |
+
+### 4.12 Time off *(v1.1)*
+
+| ID | Requirement | Priority | Roles |
+|----|-------------|----------|-------|
+| FR-TIMEOFF-1 | Record time off for a resource over a date range, with a type and optional partial-day hours. | Should | Administrator |
+| FR-TIMEOFF-2 | List time off filtered by resource, type, and a date window matched by overlap. | Should | Admin, General |
+| FR-TIMEOFF-3 | Update or delete a time-off record. | Should | Administrator |
+| FR-TIMEOFF-4 | Reject overlapping time off for the same resource, so capacity is not double-counted. | Should | Administrator |
+| FR-TIMEOFF-5 | Show time off on the Schedule and reduce effective capacity in reporting (FR-REP-6). | Should | Admin, General |
+| FR-TIMEOFF-6 | Time off shall not block allocation; it is surfaced, not enforced. | Should | — |
 
 ---
 
@@ -311,7 +444,7 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 
 ## 7. Project artifacts
 
-The following artifacts accompany delivery: this requirements document, the OpenAPI specification for the business layer (`docs/openapi.yaml`), database scripts (schema and migrations), a deployment guide, and deployment artifacts.
+The following artifacts accompany delivery: this requirements document, the OpenAPI specification for the business layer (`docs/openapi.yaml`), database scripts (schema and migrations — `db/migrations/V001__initial_schema.sql`, `db/migrations/V002__reference_app_model.sql`), a deployment guide, and deployment artifacts.
 
 ---
 
@@ -323,6 +456,10 @@ The following artifacts accompany delivery: this requirements document, the Open
 4. Is multi-currency / multi-time-zone needed in the first release?
 5. What are the exact AD groups and their mapping to the three roles?
 6. Is a full audit history (who changed what, before/after) required, or is last-modified attribution sufficient?
+7. *(v1.1)* Should `utilisation` be measured against effective capacity (availability less time off) instead of gross availability? The current definition keeps the ratio comparable with v1.0 and reports both figures (FR-REP-6), but the reference application headlines utilisation against effective capacity.
+8. *(v1.1)* Should the public holiday calendar automatically generate `publicHoliday` time-off records, or is it a display hint only? Currently it is stored but not expanded.
+9. *(v1.1)* Should manager references be validated against deeper cycles (A → B → A)? Only direct self-reference is rejected today.
+10. *(v1.1)* Do phases need to drive allocation (i.e. allocate a person to a phase rather than a project), or do they remain a presentational grouping?
 
 ---
 

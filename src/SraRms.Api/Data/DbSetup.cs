@@ -16,5 +16,9 @@ public static class DbSetup
             npg.MapEnum<ResourceStatus>("resource_status");
             npg.MapEnum<EffortUnit>("effort_unit");
             npg.MapEnum<Weekday>("day_of_week");
+            npg.MapEnum<BookableStatus>("bookable_status");
+            npg.MapEnum<TimeOffType>("time_off_type");
+            npg.MapEnum<MilestoneStatus>("milestone_status");
+            npg.MapEnum<ProjectBudgetType>("project_budget_type");
         }).UseSnakeCaseNamingConvention();
 }

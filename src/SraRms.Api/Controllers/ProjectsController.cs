@@ -100,6 +100,8 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             return BadRequestProblem($"Client {body.ClientId} does not exist.");
         if (await db.Projects.AnyAsync(p => p.Code == body.Code, ct))
             return ConflictProblem($"Project code '{body.Code}' is already in use.");
+        if (BudgetProblem(body.BudgetType, body.Budget, body.BudgetHours) is { } budgetError)
+            return BadRequestProblem(budgetError);
 
         var project = new Project
         {
@@ -112,6 +114,12 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             Remaining = body.Remaining ?? body.Budget,
             Billable = body.Billable,
             Status = body.Status,
+            BudgetType = body.BudgetType,
+            BudgetHours = body.BudgetHours,
+            RemainingHours = body.RemainingHours ?? body.BudgetHours,
+            ActivityTypes = body.ActivityTypes,
+            Details = body.Details,
+            Colour = body.Colour,
         };
         db.Projects.Add(project);
         await db.SaveChangesAsync(ct);
@@ -129,6 +137,8 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
         var project = await db.Projects.AsNoTracking()
             .Include(p => p.Client)
             .Include(p => p.Allocations).ThenInclude(a => a.Resource)
+            .Include(p => p.Phases)
+            .Include(p => p.Milestones)
             .FirstOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null) return NotFoundProblem($"Project {projectId} not found.");
 
@@ -146,6 +156,12 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             Remaining = dto.Remaining,
             Billable = dto.Billable,
             Status = dto.Status,
+            BudgetType = dto.BudgetType,
+            BudgetHours = dto.BudgetHours,
+            RemainingHours = dto.RemainingHours,
+            ActivityTypes = dto.ActivityTypes,
+            Details = dto.Details,
+            Colour = dto.Colour,
             CreatedAt = dto.CreatedAt,
             UpdatedAt = dto.UpdatedAt,
             Team = project.Allocations
@@ -156,6 +172,12 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
                 .Select(r => r.ToSummary())
                 .ToList(),
             Allocations = project.Allocations.Select(a => a.ToDto()).ToList(),
+            Phases = project.Phases
+                .OrderBy(ph => ph.SortOrder).ThenBy(ph => ph.StartDate)
+                .Select(ph => ph.ToDto()).ToList(),
+            Milestones = project.Milestones
+                .OrderBy(m => m.DueDate)
+                .Select(m => m.ToDto()).ToList(),
         };
         return Ok(detail);
     }
@@ -171,6 +193,8 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             return BadRequestProblem("End date must be on or after start date.");
         if (await db.Projects.AnyAsync(p => p.Id != projectId && p.Code == body.Code, ct))
             return ConflictProblem($"Project code '{body.Code}' is already in use.");
+        if (BudgetProblem(body.BudgetType, body.Budget, body.BudgetHours) is { } budgetError)
+            return BadRequestProblem(budgetError);
         if (body.ClientId is not null && body.ClientId != project.ClientId
             && !await db.Clients.AnyAsync(c => c.Id == body.ClientId, ct))
             return BadRequestProblem($"Client {body.ClientId} does not exist.");
@@ -207,6 +231,12 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
         project.Remaining = body.Remaining;
         project.Billable = body.Billable;
         project.Status = body.Status;
+        project.BudgetType = body.BudgetType;
+        project.BudgetHours = body.BudgetHours;
+        project.RemainingHours = body.RemainingHours;
+        project.ActivityTypes = body.ActivityTypes;
+        project.Details = body.Details;
+        project.Colour = body.Colour;
         await db.SaveChangesAsync(ct);
 
         await db.Entry(project).Reference(p => p.Client).LoadAsync(ct);
@@ -218,14 +248,197 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
     [Authorize(Policy = Policies.Admin)]
     public async Task<IActionResult> Delete(Guid projectId, [FromQuery] bool cascade, CancellationToken ct)
     {
-        var project = await db.Projects.Include(p => p.Allocations).FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        var project = await db.Projects
+            .Include(p => p.Allocations)
+            .Include(p => p.Phases)
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null) return NotFoundProblem($"Project {projectId} not found.");
 
-        if (project.Allocations.Count > 0 && !cascade)
-            return ConflictProblem($"Project has {project.Allocations.Count} allocation(s). Pass cascade=true to delete them too.");
+        // Phases and milestones are FK-RESTRICTed too (V002), so they must be
+        // counted in the 409 and cleared on cascade or the delete fails at the DB.
+        var dependents = project.Allocations.Count + project.Phases.Count + project.Milestones.Count;
+        if (dependents > 0 && !cascade)
+            return ConflictProblem(
+                $"Project has {project.Allocations.Count} allocation(s), {project.Phases.Count} phase(s) "
+                + $"and {project.Milestones.Count} milestone(s). Pass cascade=true to delete them too.");
 
-        if (cascade) db.Allocations.RemoveRange(project.Allocations);
+        if (cascade)
+        {
+            db.Allocations.RemoveRange(project.Allocations);
+            db.ProjectPhases.RemoveRange(project.Phases);
+            db.ProjectMilestones.RemoveRange(project.Milestones);
+        }
         db.Projects.Remove(project);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    // ---- Budget-type validation (V002) -------------------------------------
+    // Mirrors ck_project_budget_type in db/migrations/V002 so the caller gets a
+    // 400 with a readable message instead of a 500 from the check constraint.
+    private static string? BudgetProblem(ProjectBudgetType type, decimal? budget, decimal? budgetHours) => type switch
+    {
+        ProjectBudgetType.Fee when budget is null => "budgetType 'fee' requires a budget amount.",
+        ProjectBudgetType.Hours when budgetHours is null => "budgetType 'hours' requires budgetHours.",
+        _ => null,
+    };
+
+    // ---- Phases (FR-PHASE-*) ------------------------------------------------
+
+    // GET /projects/{projectId}/phases
+    [HttpGet("{projectId:guid}/phases")]
+    [Authorize(Policy = Policies.Read)]
+    public async Task<ActionResult<IReadOnlyList<ProjectPhaseDto>>> ListPhases(Guid projectId, CancellationToken ct)
+    {
+        if (!await db.Projects.AnyAsync(p => p.Id == projectId, ct))
+            return NotFoundProblem($"Project {projectId} not found.");
+        var rows = await db.ProjectPhases.AsNoTracking()
+            .Where(ph => ph.ProjectId == projectId)
+            .OrderBy(ph => ph.SortOrder).ThenBy(ph => ph.StartDate)
+            .ToListAsync(ct);
+        return Ok(rows.Select(ph => ph.ToDto()).ToList());
+    }
+
+    // POST /projects/{projectId}/phases
+    [HttpPost("{projectId:guid}/phases")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<ActionResult<ProjectPhaseDto>> CreatePhase(
+        Guid projectId, [FromBody] ProjectPhaseCreate body, CancellationToken ct)
+    {
+        var project = await db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return NotFoundProblem($"Project {projectId} not found.");
+        if (PhaseProblem(body.StartDate, body.EndDate, project) is { } error) return BadRequestProblem(error);
+
+        var phase = new ProjectPhase
+        {
+            ProjectId = projectId,
+            Name = body.Name,
+            StartDate = body.StartDate,
+            EndDate = body.EndDate,
+            Colour = body.Colour,
+            SortOrder = body.SortOrder,
+        };
+        db.ProjectPhases.Add(phase);
+        await db.SaveChangesAsync(ct);
+        return Created($"/v1/projects/{projectId}/phases/{phase.Id}", phase.ToDto());
+    }
+
+    // PUT /projects/{projectId}/phases/{phaseId}
+    [HttpPut("{projectId:guid}/phases/{phaseId:guid}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<ActionResult<ProjectPhaseDto>> UpdatePhase(
+        Guid projectId, Guid phaseId, [FromBody] ProjectPhaseUpdate body, CancellationToken ct)
+    {
+        var phase = await db.ProjectPhases.FirstOrDefaultAsync(ph => ph.Id == phaseId && ph.ProjectId == projectId, ct);
+        if (phase is null) return NotFoundProblem($"Phase {phaseId} not found on project {projectId}.");
+        var project = await db.Projects.AsNoTracking().FirstAsync(p => p.Id == projectId, ct);
+        if (PhaseProblem(body.StartDate, body.EndDate, project) is { } error) return BadRequestProblem(error);
+
+        phase.Name = body.Name;
+        phase.StartDate = body.StartDate;
+        phase.EndDate = body.EndDate;
+        phase.Colour = body.Colour;
+        phase.SortOrder = body.SortOrder;
+        await db.SaveChangesAsync(ct);
+        return Ok(phase.ToDto());
+    }
+
+    // DELETE /projects/{projectId}/phases/{phaseId}
+    [HttpDelete("{projectId:guid}/phases/{phaseId:guid}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<IActionResult> DeletePhase(Guid projectId, Guid phaseId, CancellationToken ct)
+    {
+        var phase = await db.ProjectPhases.FirstOrDefaultAsync(ph => ph.Id == phaseId && ph.ProjectId == projectId, ct);
+        if (phase is null) return NotFoundProblem($"Phase {phaseId} not found on project {projectId}.");
+        db.ProjectPhases.Remove(phase);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    // FR-PHASE-4: a phase is a stage *of* the project, so it must sit inside the
+    // project window - the same rule allocations obey (FR-ALL-5).
+    private static string? PhaseProblem(DateOnly start, DateOnly end, Project project)
+    {
+        if (end < start) return "End date must be on or after start date.";
+        if (start < project.StartDate || end > project.EndDate)
+            return $"Phase {start:yyyy-MM-dd}..{end:yyyy-MM-dd} falls outside the project window "
+                   + $"{project.StartDate:yyyy-MM-dd}..{project.EndDate:yyyy-MM-dd}.";
+        return null;
+    }
+
+    // ---- Milestones (FR-MILE-*) ---------------------------------------------
+
+    // GET /projects/{projectId}/milestones
+    [HttpGet("{projectId:guid}/milestones")]
+    [Authorize(Policy = Policies.Read)]
+    public async Task<ActionResult<IReadOnlyList<ProjectMilestoneDto>>> ListMilestones(Guid projectId, CancellationToken ct)
+    {
+        if (!await db.Projects.AnyAsync(p => p.Id == projectId, ct))
+            return NotFoundProblem($"Project {projectId} not found.");
+        var rows = await db.ProjectMilestones.AsNoTracking()
+            .Where(m => m.ProjectId == projectId).OrderBy(m => m.DueDate).ToListAsync(ct);
+        return Ok(rows.Select(m => m.ToDto()).ToList());
+    }
+
+    // POST /projects/{projectId}/milestones
+    [HttpPost("{projectId:guid}/milestones")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<ActionResult<ProjectMilestoneDto>> CreateMilestone(
+        Guid projectId, [FromBody] ProjectMilestoneCreate body, CancellationToken ct)
+    {
+        var project = await db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return NotFoundProblem($"Project {projectId} not found.");
+        if (body.DueDate < project.StartDate || body.DueDate > project.EndDate)
+            return BadRequestProblem(
+                $"Milestone {body.DueDate:yyyy-MM-dd} falls outside the project window "
+                + $"{project.StartDate:yyyy-MM-dd}..{project.EndDate:yyyy-MM-dd}.");
+
+        var milestone = new ProjectMilestone
+        {
+            ProjectId = projectId,
+            Name = body.Name,
+            DueDate = body.DueDate,
+            Status = body.Status,
+            Note = body.Note,
+        };
+        db.ProjectMilestones.Add(milestone);
+        await db.SaveChangesAsync(ct);
+        return Created($"/v1/projects/{projectId}/milestones/{milestone.Id}", milestone.ToDto());
+    }
+
+    // PUT /projects/{projectId}/milestones/{milestoneId}
+    [HttpPut("{projectId:guid}/milestones/{milestoneId:guid}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<ActionResult<ProjectMilestoneDto>> UpdateMilestone(
+        Guid projectId, Guid milestoneId, [FromBody] ProjectMilestoneUpdate body, CancellationToken ct)
+    {
+        var milestone = await db.ProjectMilestones
+            .FirstOrDefaultAsync(m => m.Id == milestoneId && m.ProjectId == projectId, ct);
+        if (milestone is null) return NotFoundProblem($"Milestone {milestoneId} not found on project {projectId}.");
+        var project = await db.Projects.AsNoTracking().FirstAsync(p => p.Id == projectId, ct);
+        if (body.DueDate < project.StartDate || body.DueDate > project.EndDate)
+            return BadRequestProblem(
+                $"Milestone {body.DueDate:yyyy-MM-dd} falls outside the project window "
+                + $"{project.StartDate:yyyy-MM-dd}..{project.EndDate:yyyy-MM-dd}.");
+
+        milestone.Name = body.Name;
+        milestone.DueDate = body.DueDate;
+        milestone.Status = body.Status;
+        milestone.Note = body.Note;
+        await db.SaveChangesAsync(ct);
+        return Ok(milestone.ToDto());
+    }
+
+    // DELETE /projects/{projectId}/milestones/{milestoneId}
+    [HttpDelete("{projectId:guid}/milestones/{milestoneId:guid}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<IActionResult> DeleteMilestone(Guid projectId, Guid milestoneId, CancellationToken ct)
+    {
+        var milestone = await db.ProjectMilestones
+            .FirstOrDefaultAsync(m => m.Id == milestoneId && m.ProjectId == projectId, ct);
+        if (milestone is null) return NotFoundProblem($"Milestone {milestoneId} not found on project {projectId}.");
+        db.ProjectMilestones.Remove(milestone);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

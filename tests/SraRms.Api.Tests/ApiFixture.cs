@@ -46,18 +46,30 @@ public class ApiFixture : IAsyncLifetime
         await using var conn = new NpgsqlConnection(_container.GetConnectionString());
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
-            "TRUNCATE allocation, project, resource, client, department, location, job_title, skill RESTART IDENTITY CASCADE;",
+            "TRUNCATE time_off, project_phase, project_milestone, allocation, project, resource, client, "
+            + "department, location, job_title, skill, activity_type RESTART IDENTITY CASCADE;",
             conn);
         await cmd.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// Applies every db/migrations/V*.sql in version order, so a new migration is
+    /// picked up here without editing the fixture (NFR-MAINT-2).
+    /// </summary>
     private static async Task ApplySchemaAsync(string connectionString)
     {
-        var sql = await File.ReadAllTextAsync(FindRepoFile("db/migrations/V001__initial_schema.sql"));
+        var dir = Path.GetDirectoryName(FindRepoFile("db/migrations/placeholder"))!;
+        var files = Directory.GetFiles(dir, "V*.sql").OrderBy(f => f, StringComparer.Ordinal).ToList();
+        if (files.Count == 0) throw new InvalidOperationException($"No migrations found in {dir}.");
+
         await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        await cmd.ExecuteNonQueryAsync();
+        foreach (var file in files)
+        {
+            var sql = await File.ReadAllTextAsync(file);
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 
     private static string FindRepoFile(string relative)

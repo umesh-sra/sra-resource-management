@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
-import type { Resource, ResourceStatus, Weekday } from '@/types'
+import type { BookableStatus, Resource, ResourceStatus, Weekday } from '@/types'
 import { assetUrl } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import ModalDialog from './ModalDialog.vue'
@@ -47,7 +47,32 @@ const form = ref({
   availabilityHoursPerWeek: Number(r?.availabilityHoursPerWeek ?? 38),
   workingDays: [...(r?.workingDays ?? (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as Weekday[]))],
   status: (r?.status ?? 'active') as ResourceStatus,
+  // V002 profile (Requirements §3.3)
+  jobRole: r?.jobRole ?? '',
+  managerId: r?.managerId ?? '',
+  phone: r?.phone ?? '',
+  secondarySkills: (r?.secondarySkills ?? []).join(', '),
+  securityClearances: (r?.securityClearances ?? []).join(', '),
+  securityNpcObtainedOn: r?.securityNpcObtainedOn ?? '',
+  certifications: (r?.certifications ?? []).join(', '),
+  timeZone: r?.timeZone ?? '',
+  bookableStatus: (r?.bookableStatus ?? 'bookable') as BookableStatus,
+  publicHolidayCalendar: r?.publicHolidayCalendar ?? '',
+  defaultRateHourly: r?.defaultRateHourly ?? null as number | null,
 })
+
+/** Manager pick-list; excludes the person being edited (FR-RES-9). */
+const managers = ref<Resource[]>([])
+onMounted(async () => {
+  try {
+    const page = await resourcesApi.list({ pageSize: 200, sort: 'name' })
+    managers.value = page.items.filter((m) => m.id !== r?.id)
+  } catch {
+    // A missing manager list must not block the dialog; the field just stays empty.
+  }
+})
+
+const csv = (v: string) => v.split(',').map((x) => x.trim()).filter(Boolean)
 
 const saving = ref(false)
 const imageFile = ref<File | null>(null)
@@ -99,6 +124,21 @@ async function save() {
       availabilityHoursPerWeek: Number(f.availabilityHoursPerWeek),
       workingDays: f.workingDays,
       status: f.status,
+      // V002 profile (Requirements §3.3). Empty strings are sent as undefined so
+      // clearing a field nulls it rather than storing "".
+      jobRole: f.jobRole.trim() || undefined,
+      managerId: f.managerId || undefined,
+      phone: f.phone.trim() || undefined,
+      secondarySkills: csv(f.secondarySkills),
+      securityClearances: csv(f.securityClearances),
+      securityNpcObtainedOn: f.securityNpcObtainedOn || undefined,
+      certifications: csv(f.certifications),
+      timeZone: f.timeZone.trim() || undefined,
+      bookableStatus: f.bookableStatus,
+      publicHolidayCalendar: f.publicHolidayCalendar.trim() || undefined,
+      defaultRateHourly: f.defaultRateHourly == null || (f.defaultRateHourly as unknown) === ''
+        ? undefined
+        : Number(f.defaultRateHourly),
     }
     const saved = props.resource
       ? await resourcesApi.update(props.resource.id, body)
@@ -169,11 +209,50 @@ async function save() {
       <div class="field"><label for="pf-loc">Location</label><input id="pf-loc" class="input" v-model="form.location" /></div>
     </div>
 
+    <div class="form-row">
+      <div class="field">
+        <label for="pf-jobrole">Job role</label>
+        <input id="pf-jobrole" class="input" v-model="form.jobRole" placeholder="Tech Lead" />
+      </div>
+      <div class="field">
+        <label for="pf-manager">Manager</label>
+        <select id="pf-manager" class="select" v-model="form.managerId">
+          <option value="">— None —</option>
+          <option v-for="m in managers" :key="m.id" :value="m.id">{{ m.name }}</option>
+        </select>
+      </div>
+    </div>
+
     <div class="sections">
-      <CollapsibleSection title="Extra Details" summary="Primary skills, notes">
+      <CollapsibleSection
+        title="Extra Details"
+        summary="Phone, primary &amp; secondary skills, security clearances, certifications, notes"
+      >
         <div class="field">
-          <label for="pf-skills">Skills (comma-separated)</label>
+          <label for="pf-phone">Phone</label>
+          <input id="pf-phone" class="input" type="tel" v-model="form.phone" placeholder="+61 400 000 000" />
+        </div>
+        <div class="field">
+          <label for="pf-skills">Primary skills (comma-separated)</label>
           <input id="pf-skills" class="input" v-model="form.skills" placeholder="C#, Vue.js, PostgreSQL" />
+        </div>
+        <div class="field">
+          <label for="pf-skills2">Secondary skills (comma-separated)</label>
+          <input id="pf-skills2" class="input" v-model="form.secondarySkills" placeholder="Azure, Terraform" />
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="pf-clear">Security clearances (comma-separated)</label>
+            <input id="pf-clear" class="input" v-model="form.securityClearances" placeholder="Baseline, NV1" />
+          </div>
+          <div class="field">
+            <label for="pf-npc">Security NPC obtained</label>
+            <input id="pf-npc" class="input" type="date" v-model="form.securityNpcObtainedOn" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="pf-certs">Staff certifications (comma-separated)</label>
+          <input id="pf-certs" class="input" v-model="form.certifications" placeholder="AZ-204, CSM" />
         </div>
         <div class="field">
           <label for="pf-notes">Notes</label>
@@ -196,6 +275,23 @@ async function save() {
             </select>
           </div>
         </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="pf-tz">Time zone</label>
+            <input id="pf-tz" class="input" v-model="form.timeZone" placeholder="Australia/Adelaide" />
+          </div>
+          <div class="field">
+            <label for="pf-bookable">Bookable status</label>
+            <select id="pf-bookable" class="select" v-model="form.bookableStatus">
+              <option value="bookable">Bookable</option>
+              <option value="nonBookable">Non-bookable</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="pf-holcal">Public holiday calendar</label>
+          <input id="pf-holcal" class="input" v-model="form.publicHolidayCalendar" placeholder="AU-SA" />
+        </div>
         <fieldset class="days">
           <legend>Working days</legend>
           <label v-for="d in WEEKDAYS" :key="d" class="day">
@@ -205,10 +301,14 @@ async function save() {
         </fieldset>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Financial" summary="Charge-out rates">
+      <CollapsibleSection title="Financial" summary="Default charge-out rate">
+        <div class="field">
+          <label for="pf-rate">Default rate (AUD per hour)</label>
+          <input id="pf-rate" class="input" type="number" min="0" step="0.01" v-model.number="form.defaultRateHourly" />
+        </div>
         <p class="muted" style="margin: 0">
-          Per-person rates are not part of the SRA-RMS data model. Budget and remaining spend are
-          tracked on the project record instead.
+          Used as the default when this person is allocated to a project; each allocation can
+          override it on the project's Team tab.
         </p>
       </CollapsibleSection>
     </div>

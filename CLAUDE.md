@@ -52,12 +52,23 @@ Four core entities with this relational shape:
 
 - **Client** `1—*` **Project** `1—*` **Allocation** `*—1` **Resource**
 
-An **Allocation** is the join between one Resource and one Project for a date range with an effort value (`hoursPerWeek` or `percent`, see `EffortUnit`). Key invariants (enforce server-side, per §3.5 of the SRS):
+An **Allocation** is the join between one Resource and one Project for a date range with an effort value (`hoursPerWeek` or `percent`, see `EffortUnit`).
+
+Four further entities came with the V002 model (SRS §3.6–§3.9):
+
+- **Project** `1—*` **ProjectPhase** (named, dated stage) and `1—*` **ProjectMilestone** (dated checkpoint)
+- **Resource** `1—*` **TimeOff** (leave over a date range)
+- **ActivityType** — a fifth admin-maintained pick-list alongside department / location / job title / skill
+
+Key invariants (enforce server-side, per §3.5 of the SRS):
 
 - Project `endDate` ≥ `startDate`; allocation dates validated against the project window.
 - `email` (Resource) and `code` (Project) are unique.
 - Deletes are referential-integrity-aware: by default return **409** when dependents exist; the `cascade=true` query parameter opts into cascading delete.
 - Over-allocation (a resource's concurrent effort exceeding its weekly availability) is **not blocked** — it is surfaced as a non-blocking `warnings` array on the created/updated allocation, and flagged in Gantt/dashboard views.
+- Phase date ranges and milestone due dates are validated against the project window; a project's `budgetType` must agree with its budget fields (`fee` needs `budget`, `hours` needs `budgetHours`).
+- Time off does **not** block allocation either, but overlapping leave for the same resource **is** rejected (409) — that is a data error, not a legitimate warning state. Leave reduces `effectiveCapacityHours` in the utilisation report; `utilisation` itself stays measured against **gross** availability so the ratio is comparable across releases.
+- A resource may not be its own manager. `manager_id` is `ON DELETE SET NULL` (the one exception to the RESTRICT convention): being named as a manager is descriptive and must not block a delete.
 
 ## Authn / authz
 
@@ -76,4 +87,6 @@ An **Allocation** is the join between one Resource and one Project for a date ra
 
 ## Open questions
 
-`docs/Requirements.md` §8 lists unresolved decisions (effort units, how "remaining" budget is derived, soft-delete/history retention, multi-currency, exact AD group mapping, audit depth). If implementation work depends on one of these, surface it rather than silently picking an answer.
+`docs/Requirements.md` §8 lists unresolved decisions (effort units, how "remaining" budget is derived, soft-delete/history retention, multi-currency, exact AD group mapping, audit depth, and — from v1.1 — whether utilisation should be measured against effective capacity, whether the public holiday calendar auto-generates leave, deeper manager-cycle validation, and whether phases should drive allocation). If implementation work depends on one of these, surface it rather than silently picking an answer.
+
+The reference application's *Permissions Role*, *Invitation Status* and *Last Login* are deliberately **not** modelled: roles come from AD group membership, so an app-local permissions column would contradict the auth design (SRS §3.3).

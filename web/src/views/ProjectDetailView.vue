@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { allocationsApi, projectsApi, resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
 import type { Allocation, EffortUnit, ProjectDetail, Resource } from '@/types'
-import { fmtDate, fmtMoney, projectStatus } from '@/lib/format'
+import { fmtDate, fmtMoney, milestoneBadge, milestoneLabel, projectStatus } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import ModalDialog from '@/components/ModalDialog.vue'
 import AllocationEditModal from '@/components/AllocationEditModal.vue'
@@ -190,6 +190,48 @@ onMounted(load)
           </table>
         </div>
       </div>
+
+      <!-- Phases & milestones (Requirements §3.6 / §3.7) ------------------ -->
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-pad" style="padding-bottom: 8px"><h2>Phases</h2></div>
+          <div class="card-pad" style="padding-top: 0">
+            <ol v-if="project.phases.length" class="stages">
+              <li v-for="ph in project.phases" :key="ph.id">
+                <span class="stage-bar" :style="{ background: ph.colour || 'var(--brand-500)' }" aria-hidden="true" />
+                <div>
+                  <div class="stage-name">{{ ph.name }}</div>
+                  <div class="muted">{{ fmtDate(ph.startDate) }} – {{ fmtDate(ph.endDate) }}</div>
+                </div>
+              </li>
+            </ol>
+            <p v-else class="muted" style="margin: 0">
+              No phases. Add them from <em>Edit project → Phases</em>.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-pad" style="padding-bottom: 8px"><h2>Milestones</h2></div>
+          <div class="card-pad" style="padding-top: 0">
+            <ol v-if="project.milestones.length" class="stages">
+              <li v-for="m in project.milestones" :key="m.id">
+                <span class="milestone-dot" :class="m.status" aria-hidden="true" />
+                <div>
+                  <div class="stage-name">{{ m.name }}</div>
+                  <div class="muted">
+                    {{ fmtDate(m.dueDate) }} ·
+                    <span class="badge" :class="milestoneBadge(m.status)">{{ milestoneLabel(m.status) }}</span>
+                  </div>
+                </div>
+              </li>
+            </ol>
+            <p v-else class="muted" style="margin: 0">
+              No milestones. Add them from <em>Edit project → Milestones</em>.
+            </p>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 
@@ -235,6 +277,13 @@ onMounted(load)
 </template>
 
 <style scoped>
+.stages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.stages li { display: flex; align-items: flex-start; gap: 10px; }
+.stage-bar { width: 4px; align-self: stretch; min-height: 34px; border-radius: 999px; flex: none; }
+.stage-name { font-weight: 600; }
+.milestone-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex: none; background: var(--gray-400); }
+.milestone-dot.met { background: var(--green-600); }
+.milestone-dot.missed { background: var(--red-600); }
 .ttl { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crumb { margin: 0 0 14px; font-size: 13.5px; }
 .figures {

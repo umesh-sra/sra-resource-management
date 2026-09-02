@@ -32,6 +32,12 @@ public static class Mapping
         Remaining = p.Remaining,
         Billable = p.Billable,
         Status = p.Status,
+        BudgetType = p.BudgetType,
+        BudgetHours = p.BudgetHours,
+        RemainingHours = p.RemainingHours,
+        ActivityTypes = p.ActivityTypes,
+        Details = p.Details,
+        Colour = p.Colour,
         CreatedAt = p.CreatedAt,
         UpdatedAt = p.UpdatedAt,
     };
@@ -51,6 +57,21 @@ public static class Mapping
         ImageUrl = r.ImageUrl,
         AvailabilityHoursPerWeek = r.AvailabilityHoursPerWeek,
         WorkingDays = r.WorkingDays,
+        JobRole = r.JobRole,
+        ManagerId = r.ManagerId,
+        // Only populated when the caller has Include()d Manager; the person
+        // panel shows a name, list endpoints leave it null rather than N+1.
+        ManagerName = r.Manager?.Name,
+        Phone = r.Phone,
+        SecondarySkills = r.SecondarySkills,
+        SecurityClearances = r.SecurityClearances,
+        SecurityNpcObtainedOn = r.SecurityNpcObtainedOn,
+        Certifications = r.Certifications,
+        TimeZone = r.TimeZone,
+        BookableStatus = r.BookableStatus,
+        PublicHolidayCalendar = r.PublicHolidayCalendar,
+        DefaultRateHourly = r.DefaultRateHourly,
+        Colour = r.Colour,
         CreatedAt = r.CreatedAt,
         UpdatedAt = r.UpdatedAt,
     };
@@ -76,9 +97,51 @@ public static class Mapping
         EffortUnit = a.EffortUnit,
         RoleOnProject = a.RoleOnProject,
         Billable = a.Billable,
+        HourlyRate = a.HourlyRate,
         Warnings = warnings ?? [],
         CreatedAt = a.CreatedAt,
         UpdatedAt = a.UpdatedAt,
+    };
+
+    // ---- V002 -------------------------------------------------------------
+
+    public static ProjectPhaseDto ToDto(this ProjectPhase p) => new()
+    {
+        Id = p.Id,
+        ProjectId = p.ProjectId,
+        Name = p.Name,
+        StartDate = p.StartDate,
+        EndDate = p.EndDate,
+        Colour = p.Colour,
+        SortOrder = p.SortOrder,
+        CreatedAt = p.CreatedAt,
+        UpdatedAt = p.UpdatedAt,
+    };
+
+    public static ProjectMilestoneDto ToDto(this ProjectMilestone m) => new()
+    {
+        Id = m.Id,
+        ProjectId = m.ProjectId,
+        Name = m.Name,
+        DueDate = m.DueDate,
+        Status = m.Status,
+        Note = m.Note,
+        CreatedAt = m.CreatedAt,
+        UpdatedAt = m.UpdatedAt,
+    };
+
+    public static TimeOffDto ToDto(this TimeOff t) => new()
+    {
+        Id = t.Id,
+        ResourceId = t.ResourceId,
+        ResourceName = t.Resource?.Name,
+        StartDate = t.StartDate,
+        EndDate = t.EndDate,
+        Type = t.Type,
+        HoursPerDay = t.HoursPerDay,
+        Note = t.Note,
+        CreatedAt = t.CreatedAt,
+        UpdatedAt = t.UpdatedAt,
     };
 
     public static ReferenceItemDto ToDto(this ReferenceItem r) => new(r.Id, r.Value, r.Active);

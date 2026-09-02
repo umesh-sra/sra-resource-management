@@ -3,6 +3,10 @@
 export type ProjectStatus = 'planned' | 'active' | 'onHold' | 'completed' | 'cancelled'
 export type ResourceStatus = 'active' | 'inactive' | 'onLeave'
 export type EffortUnit = 'hoursPerWeek' | 'percent'
+export type BookableStatus = 'bookable' | 'nonBookable'
+export type TimeOffType = 'annualLeave' | 'personal' | 'sick' | 'publicHoliday' | 'other'
+export type MilestoneStatus = 'pending' | 'met' | 'missed'
+export type ProjectBudgetType = 'none' | 'fee' | 'hours'
 export type Weekday =
   | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
 
@@ -43,6 +47,13 @@ export interface Project {
   remaining?: number
   billable: boolean
   status: ProjectStatus
+  /** V002 — which budget applies; 'fee' uses `budget`, 'hours' uses `budgetHours`. */
+  budgetType: ProjectBudgetType
+  budgetHours?: number
+  remainingHours?: number
+  activityTypes: string[]
+  details?: string
+  colour?: string
   /** Distinct people allocated to the project (list + detail responses). */
   team: ResourceSummary[]
   createdAt: string
@@ -51,6 +62,31 @@ export interface Project {
 
 export interface ProjectDetail extends Project {
   allocations: Allocation[]
+  phases: ProjectPhase[]
+  milestones: ProjectMilestone[]
+}
+
+export interface ProjectPhase {
+  id: string
+  projectId: string
+  name: string
+  startDate: string
+  endDate: string
+  colour?: string
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProjectMilestone {
+  id: string
+  projectId: string
+  name: string
+  dueDate: string
+  status: MilestoneStatus
+  note?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Resource {
@@ -67,6 +103,21 @@ export interface Resource {
   imageUrl?: string
   availabilityHoursPerWeek: number
   workingDays: Weekday[]
+  /** V002 — the person panel's Overview / Extra Details / Scheduling / Financial groups. */
+  jobRole?: string
+  managerId?: string
+  /** Resolved on the detail endpoint only; list responses omit it. */
+  managerName?: string
+  phone?: string
+  secondarySkills: string[]
+  securityClearances: string[]
+  securityNpcObtainedOn?: string
+  certifications: string[]
+  timeZone?: string
+  bookableStatus: BookableStatus
+  publicHolidayCalendar?: string
+  defaultRateHourly?: number
+  colour?: string
   createdAt: string
   updatedAt: string
 }
@@ -81,6 +132,21 @@ export interface ResourceSummary {
 export interface ResourceDetail extends Resource {
   allocations: Allocation[]
   allocatedHoursPerWeek: number
+  timeOff: TimeOff[]
+}
+
+export interface TimeOff {
+  id: string
+  resourceId: string
+  resourceName?: string
+  startDate: string
+  endDate: string
+  type: TimeOffType
+  /** Omitted means the whole working day. */
+  hoursPerDay?: number
+  note?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Allocation {
@@ -95,6 +161,8 @@ export interface Allocation {
   effortUnit: EffortUnit
   roleOnProject?: string
   billable: boolean
+  /** V002 — per-person billable rate (project Team tab). */
+  hourlyRate?: number
   warnings: string[]
   createdAt: string
   updatedAt: string
@@ -121,6 +189,11 @@ export interface GanttBar {
   effort?: number
   effortUnit?: EffortUnit
   overAllocated?: boolean
+  /**
+   * Client-side annotation, not part of the API response: the Schedule merges
+   * time-off records in as bars so leave sits on the same row as allocations.
+   */
+  kind?: 'allocation' | 'timeOff'
 }
 
 export interface GanttRow {
@@ -140,9 +213,18 @@ export interface UtilisationRow {
   resourceId: string
   resourceName: string
   department?: string
+  /** Gross availability over the window. */
   availableHours: number
   allocatedHours: number
+  /**
+   * allocatedHours / availableHours — measured against *gross* availability, so
+   * the ratio is unchanged by V002. Effective capacity is reported separately.
+   */
   utilisation: number
+  /** V002 — working-day hours lost to leave in the window. */
+  timeOffHours: number
+  /** V002 — availableHours minus timeOffHours (FR-REP-6). */
+  effectiveCapacityHours: number
 }
 
 export interface UtilisationReport {

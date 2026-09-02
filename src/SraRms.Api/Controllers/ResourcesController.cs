@@ -55,6 +55,8 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
     {
         if (await db.Resources.AnyAsync(r => r.Email.ToLower() == body.Email.ToLower(), ct))
             return ConflictProblem($"A resource with email '{body.Email}' already exists.");
+        if (await ManagerProblem(body.ManagerId, null, ct) is { } managerError)
+            return BadRequestProblem(managerError);
 
         var resource = new Resource
         {
@@ -69,6 +71,18 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
             Skills = body.Skills,
             AvailabilityHoursPerWeek = body.AvailabilityHoursPerWeek,
             WorkingDays = body.WorkingDays,
+            JobRole = body.JobRole,
+            ManagerId = body.ManagerId,
+            Phone = body.Phone,
+            SecondarySkills = body.SecondarySkills,
+            SecurityClearances = body.SecurityClearances,
+            SecurityNpcObtainedOn = body.SecurityNpcObtainedOn,
+            Certifications = body.Certifications,
+            TimeZone = body.TimeZone,
+            BookableStatus = body.BookableStatus,
+            PublicHolidayCalendar = body.PublicHolidayCalendar,
+            DefaultRateHourly = body.DefaultRateHourly,
+            Colour = body.Colour,
         };
         db.Resources.Add(resource);
         await db.SaveChangesAsync(ct);
@@ -83,6 +97,8 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
         // NB: do not Include Allocations->Resource — it cycles back to this resource.
         var resource = await db.Resources.AsNoTracking()
             .Include(r => r.Allocations).ThenInclude(a => a.Project)
+            .Include(r => r.Manager)
+            .Include(r => r.TimeOff)
             .FirstOrDefaultAsync(r => r.Id == resourceId, ct);
         if (resource is null) return NotFoundProblem($"Resource {resourceId} not found.");
 
@@ -107,10 +123,24 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
             ImageUrl = dto.ImageUrl,
             AvailabilityHoursPerWeek = dto.AvailabilityHoursPerWeek,
             WorkingDays = dto.WorkingDays,
+            JobRole = dto.JobRole,
+            ManagerId = dto.ManagerId,
+            ManagerName = dto.ManagerName,
+            Phone = dto.Phone,
+            SecondarySkills = dto.SecondarySkills,
+            SecurityClearances = dto.SecurityClearances,
+            SecurityNpcObtainedOn = dto.SecurityNpcObtainedOn,
+            Certifications = dto.Certifications,
+            TimeZone = dto.TimeZone,
+            BookableStatus = dto.BookableStatus,
+            PublicHolidayCalendar = dto.PublicHolidayCalendar,
+            DefaultRateHourly = dto.DefaultRateHourly,
+            Colour = dto.Colour,
             CreatedAt = dto.CreatedAt,
             UpdatedAt = dto.UpdatedAt,
             Allocations = resource.Allocations.OrderBy(a => a.StartDate).Select(a => a.ToDto()).ToList(),
             AllocatedHoursPerWeek = allocatedHours,
+            TimeOff = resource.TimeOff.OrderBy(t => t.StartDate).Select(t => t.ToDto()).ToList(),
         };
         return Ok(detail);
     }
@@ -124,6 +154,8 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
         if (resource is null) return NotFoundProblem($"Resource {resourceId} not found.");
         if (await db.Resources.AnyAsync(r => r.Id != resourceId && r.Email.ToLower() == body.Email.ToLower(), ct))
             return ConflictProblem($"A resource with email '{body.Email}' already exists.");
+        if (await ManagerProblem(body.ManagerId, resourceId, ct) is { } managerError)
+            return BadRequestProblem(managerError);
 
         resource.Name = body.Name;
         resource.Email = body.Email;
@@ -136,6 +168,18 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
         resource.Skills = body.Skills;
         resource.AvailabilityHoursPerWeek = body.AvailabilityHoursPerWeek;
         resource.WorkingDays = body.WorkingDays;
+        resource.JobRole = body.JobRole;
+        resource.ManagerId = body.ManagerId;
+        resource.Phone = body.Phone;
+        resource.SecondarySkills = body.SecondarySkills;
+        resource.SecurityClearances = body.SecurityClearances;
+        resource.SecurityNpcObtainedOn = body.SecurityNpcObtainedOn;
+        resource.Certifications = body.Certifications;
+        resource.TimeZone = body.TimeZone;
+        resource.BookableStatus = body.BookableStatus;
+        resource.PublicHolidayCalendar = body.PublicHolidayCalendar;
+        resource.DefaultRateHourly = body.DefaultRateHourly;
+        resource.Colour = body.Colour;
         await db.SaveChangesAsync(ct);
         return Ok(resource.ToDto());
     }
@@ -145,16 +189,42 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env) : Bas
     [Authorize(Policy = Policies.Admin)]
     public async Task<IActionResult> Delete(Guid resourceId, [FromQuery] bool cascade, CancellationToken ct)
     {
-        var resource = await db.Resources.Include(r => r.Allocations).FirstOrDefaultAsync(r => r.Id == resourceId, ct);
+        var resource = await db.Resources
+            .Include(r => r.Allocations)
+            .Include(r => r.TimeOff)
+            .FirstOrDefaultAsync(r => r.Id == resourceId, ct);
         if (resource is null) return NotFoundProblem($"Resource {resourceId} not found.");
 
-        if (resource.Allocations.Count > 0 && !cascade)
-            return ConflictProblem($"Resource has {resource.Allocations.Count} allocation(s). Pass cascade=true to delete them too.");
+        // Time off is FK-RESTRICTed (V002), so it counts toward the 409 and must
+        // be cleared on cascade. ManagerId is ON DELETE SET NULL, so people who
+        // report to this person do not block the delete - they are just unlinked.
+        var dependents = resource.Allocations.Count + resource.TimeOff.Count;
+        if (dependents > 0 && !cascade)
+            return ConflictProblem(
+                $"Resource has {resource.Allocations.Count} allocation(s) and {resource.TimeOff.Count} "
+                + "time-off record(s). Pass cascade=true to delete them too.");
 
-        if (cascade) db.Allocations.RemoveRange(resource.Allocations);
+        if (cascade)
+        {
+            db.Allocations.RemoveRange(resource.Allocations);
+            db.TimeOff.RemoveRange(resource.TimeOff);
+        }
         db.Resources.Remove(resource);
         await db.SaveChangesAsync(ct);
         return NoContent();
+    }
+
+    // A manager must exist and must not be the person themselves. Deeper cycles
+    // (A -> B -> A) are not walked: the reference treats Manager as a display
+    // attribute, and a full ancestry check would cost a recursive query on every
+    // write. Tracked in TODO.md.
+    private async Task<string?> ManagerProblem(Guid? managerId, Guid? selfId, CancellationToken ct)
+    {
+        if (managerId is null) return null;
+        if (selfId is not null && managerId == selfId) return "A resource cannot be its own manager.";
+        if (!await db.Resources.AnyAsync(r => r.Id == managerId, ct))
+            return $"Manager {managerId} does not exist.";
+        return null;
     }
 
     private const long MaxImageBytes = 5 * 1024 * 1024; // 5 MB

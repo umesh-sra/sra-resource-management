@@ -140,7 +140,7 @@ const layouts = computed(() =>
             </div>
             <button
               v-for="(b, i) in l.bars" :key="i" type="button" class="tl-bar"
-              :class="{ over: b.bar.overAllocated }"
+              :class="{ over: b.bar.overAllocated, leave: b.bar.kind === 'timeOff' }"
               :style="{ left: `${b.left}px`, width: `${b.width}px`, top: `${BAR_GAP + b.lane * (BAR_H + BAR_GAP)}px`, height: `${BAR_H}px` }"
               @click="emit('barClick', b.bar, l.row)"
             >
@@ -200,6 +200,13 @@ const layouts = computed(() =>
 .tl-bar:hover { background: var(--brand-100); border-color: var(--brand-400); }
 .tl-bar.over { background: var(--red-50); border-color: #f0b4b4; color: var(--red-700); }
 .tl-bar.over:hover { background: #fbe0e0; }
+/* Time off reads as a muted, hatched block so it is never mistaken for work. */
+.tl-bar.leave {
+  background: repeating-linear-gradient(45deg, var(--gray-100), var(--gray-100) 6px, var(--gray-200) 6px, var(--gray-200) 12px);
+  border-color: var(--gray-300);
+  color: var(--gray-700);
+}
+.tl-bar.leave:hover { background: var(--gray-200); }
 .tl-bar-text { display: block; overflow: hidden; }
 
 .tl-today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); opacity: .5; pointer-events: none; z-index: 3; }

@@ -1,7 +1,8 @@
 import { http } from './http'
 import type {
   Allocation, Client, ClientDetail, DashboardSummary, GanttResponse, GanttView, Page,
-  Project, ProjectDetail, ReferenceItem, Resource, ResourceDetail, UtilisationReport,
+  Project, ProjectDetail, ProjectMilestone, ProjectPhase, ReferenceItem, Resource,
+  ResourceDetail, TimeOff, TimeOffType, UtilisationReport,
 } from '@/types'
 
 // ---- Clients ----
@@ -32,6 +33,41 @@ export const projectsApi = {
     http.delete(`/projects/${id}`, { params: { cascade } }),
   createAllocation: (projectId: string, body: Partial<Allocation>) =>
     http.post<Allocation>(`/projects/${projectId}/allocations`, body).then((r) => r.data),
+
+  // ---- Phases (FR-PHASE-*) ----
+  listPhases: (projectId: string) =>
+    http.get<ProjectPhase[]>(`/projects/${projectId}/phases`).then((r) => r.data),
+  createPhase: (projectId: string, body: Partial<ProjectPhase>) =>
+    http.post<ProjectPhase>(`/projects/${projectId}/phases`, body).then((r) => r.data),
+  updatePhase: (projectId: string, phaseId: string, body: Partial<ProjectPhase>) =>
+    http.put<ProjectPhase>(`/projects/${projectId}/phases/${phaseId}`, body).then((r) => r.data),
+  removePhase: (projectId: string, phaseId: string) =>
+    http.delete(`/projects/${projectId}/phases/${phaseId}`),
+
+  // ---- Milestones (FR-MILE-*) ----
+  listMilestones: (projectId: string) =>
+    http.get<ProjectMilestone[]>(`/projects/${projectId}/milestones`).then((r) => r.data),
+  createMilestone: (projectId: string, body: Partial<ProjectMilestone>) =>
+    http.post<ProjectMilestone>(`/projects/${projectId}/milestones`, body).then((r) => r.data),
+  updateMilestone: (projectId: string, milestoneId: string, body: Partial<ProjectMilestone>) =>
+    http.put<ProjectMilestone>(`/projects/${projectId}/milestones/${milestoneId}`, body).then((r) => r.data),
+  removeMilestone: (projectId: string, milestoneId: string) =>
+    http.delete(`/projects/${projectId}/milestones/${milestoneId}`),
+}
+
+// ---- Time off (FR-TIMEOFF-*) ----
+export interface TimeOffFilters {
+  resourceId?: string; from?: string; to?: string; type?: TimeOffType
+  page?: number; pageSize?: number
+}
+export const timeOffApi = {
+  list: (params: TimeOffFilters = {}) =>
+    http.get<Page<TimeOff>>('/timeoff', { params }).then((r) => r.data),
+  get: (id: string) => http.get<TimeOff>(`/timeoff/${id}`).then((r) => r.data),
+  create: (body: Partial<TimeOff>) => http.post<TimeOff>('/timeoff', body).then((r) => r.data),
+  update: (id: string, body: Partial<TimeOff>) =>
+    http.put<TimeOff>(`/timeoff/${id}`, body).then((r) => r.data),
+  remove: (id: string) => http.delete(`/timeoff/${id}`),
 }
 
 // ---- Resources ----

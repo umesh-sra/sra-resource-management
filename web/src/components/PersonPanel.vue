@@ -3,7 +3,7 @@ import { computed, onMounted, ref, useId, watch } from 'vue'
 import { projectsApi, resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
 import type { Project, ResourceDetail } from '@/types'
-import { assetUrl, fmtDate, initials, resourceStatus } from '@/lib/format'
+import { assetUrl, fmtDate, fmtMoney, initials, resourceStatus, timeOffLabel } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import SidePanel from './SidePanel.vue'
 import CollapsibleSection from './CollapsibleSection.vue'
@@ -157,22 +157,46 @@ async function remove() {
       <div v-else-if="person && tab === 'overview'" class="detail-body" role="tabpanel">
         <dl class="defs">
           <div><dt>Department</dt><dd><span class="pill">{{ person.department || '—' }}</span></dd></div>
-          <div><dt>Job Role</dt><dd><span class="pill">{{ person.secondaryJobTitle || person.primaryJobTitle }}</span></dd></div>
+          <div><dt>Job Role</dt><dd><span class="pill">{{ person.jobRole || '—' }}</span></dd></div>
           <div><dt>Location</dt><dd><span class="pill">{{ person.location || '—' }}</span></dd></div>
+          <div><dt>Manager</dt><dd><span class="pill">{{ person.managerName || '—' }}</span></dd></div>
           <div><dt>Notes</dt><dd>{{ person.notes || '—' }}</dd></div>
         </dl>
 
         <div class="sections">
           <CollapsibleSection
             title="Extra Details"
-            summary="Primary skills, secondary job title, notes"
+            summary="Phone, skills, security clearances, certifications"
           >
             <dl class="defs">
+              <div><dt>Phone</dt><dd>{{ person.phone || '—' }}</dd></div>
               <div>
-                <dt>Skills</dt>
+                <dt>Primary skills</dt>
                 <dd>
                   <span v-for="s in person.skills" :key="s" class="chip">{{ s }}</span>
                   <span v-if="!person.skills.length">—</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Secondary skills</dt>
+                <dd>
+                  <span v-for="s in person.secondarySkills" :key="s" class="chip">{{ s }}</span>
+                  <span v-if="!person.secondarySkills.length">—</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Security clearances</dt>
+                <dd>
+                  <span v-for="c in person.securityClearances" :key="c" class="chip">{{ c }}</span>
+                  <span v-if="!person.securityClearances.length">—</span>
+                </dd>
+              </div>
+              <div><dt>Security NPC obtained</dt><dd>{{ fmtDate(person.securityNpcObtainedOn) }}</dd></div>
+              <div>
+                <dt>Staff certifications</dt>
+                <dd>
+                  <span v-for="c in person.certifications" :key="c" class="chip">{{ c }}</span>
+                  <span v-if="!person.certifications.length">—</span>
                 </dd>
               </div>
               <div><dt>Secondary job title</dt><dd>{{ person.secondaryJobTitle || '—' }}</dd></div>
@@ -180,8 +204,18 @@ async function remove() {
             </dl>
           </CollapsibleSection>
 
-          <CollapsibleSection title="Scheduling" summary="Availability, working days, status">
+          <CollapsibleSection title="Scheduling" summary="Time zone, availability, working days, time off">
             <dl class="defs">
+              <div><dt>Time zone</dt><dd>{{ person.timeZone || '—' }}</dd></div>
+              <div>
+                <dt>Bookable</dt>
+                <dd>
+                  <span class="badge" :class="person.bookableStatus === 'bookable' ? 'green' : 'gray'">
+                    {{ person.bookableStatus === 'bookable' ? 'Bookable' : 'Non-bookable' }}
+                  </span>
+                </dd>
+              </div>
+              <div><dt>Public holiday calendar</dt><dd>{{ person.publicHolidayCalendar || '—' }}</dd></div>
               <div><dt>Availability</dt><dd>{{ person.availabilityHoursPerWeek }} hours per week</dd></div>
               <div>
                 <dt>Working days</dt>
@@ -205,13 +239,31 @@ async function remove() {
                   </div>
                 </dd>
               </div>
+              <div>
+                <dt>Time off</dt>
+                <dd>
+                  <ul v-if="person.timeOff?.length" class="leave">
+                    <li v-for="t in person.timeOff" :key="t.id">
+                      <span class="badge gray">{{ timeOffLabel(t.type) }}</span>
+                      {{ fmtDate(t.startDate) }} – {{ fmtDate(t.endDate) }}
+                      <span v-if="t.hoursPerDay" class="muted">({{ t.hoursPerDay }}h/day)</span>
+                    </li>
+                  </ul>
+                  <span v-else>—</span>
+                </dd>
+              </div>
             </dl>
           </CollapsibleSection>
 
-          <CollapsibleSection title="Financial" summary="Charge-out rates">
-            <p class="muted" style="margin: 0">
-              Per-person rates are not part of the SRA-RMS data model. Project-level budget and
-              remaining spend are on the project record.
+          <CollapsibleSection title="Financial" summary="Default charge-out rate">
+            <dl class="defs">
+              <div>
+                <dt>Default rate</dt>
+                <dd>{{ person.defaultRateHourly != null ? `${fmtMoney(person.defaultRateHourly)} per hour` : '—' }}</dd>
+              </div>
+            </dl>
+            <p class="muted" style="margin: 8px 0 0">
+              Each allocation can override this on the project's Team tab.
             </p>
           </CollapsibleSection>
         </div>
@@ -248,6 +300,8 @@ async function remove() {
 </template>
 
 <style scoped>
+.leave { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.leave li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rail {
   width: 340px; flex-shrink: 0; background: var(--brand-800); color: #dbe7f2;
   display: flex; flex-direction: column; overflow-y: auto;

@@ -55,11 +55,18 @@ captured in `screens/`:
 Create dialogs mirror `new_person_*.png` and `new_project*.png`.
 
 **Deliberate departures.** Colour follows the SRA brand rather than the
-reference's purple (NFR-USE-1). Reference features with no counterpart in the
-data model or `docs/openapi.yaml` are omitted rather than mocked: Timesheets,
-Time Off, project Phases and Milestones, hour-based budgets, per-person
-charge-out rates, invitation emails, and per-person permission roles (roles come
-from AD groups, SRS §5). The Reports rail lists the unavailable standard reports
+reference's purple (NFR-USE-1).
+
+The V002 model closed most of the earlier gaps: project **Phases** and
+**Milestones** are now tabs on the project dialog and cards on the project page,
+**Time off** is drawn on the Schedule as hatched blocks and listed in the person
+drawer, **hour-based budgets** are a Budget-tab option, and **per-person rates**
+live on the person record (default) and each allocation (override).
+
+Still omitted rather than mocked, because nothing backs them: **Timesheets** and
+timesheet actuals, invitation emails, and per-person **permission roles** — roles
+come from AD group membership, so an app-local role would contradict the auth
+design (SRS §3.3). The Reports rail lists the unavailable standard reports
 explicitly so the gap is visible rather than silent.
 
 ## Conventions

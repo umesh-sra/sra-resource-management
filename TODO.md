@@ -1,6 +1,6 @@
 # SRA-RMS — TODO
 
-Living backlog for the SRA Resource Management System. Status as of 2026-06-29.
+Living backlog for the SRA Resource Management System. Status as of 2026-09-02.
 See `docs/Requirements.md` for the full spec and `docs/openapi.yaml` for the API contract.
 
 ## Done
@@ -13,6 +13,17 @@ See `docs/Requirements.md` for the full spec and `docs/openapi.yaml` for the API
 - [x] **Reference-app UI rebuild** — 2026-09-02: the SPA now follows the information architecture and screen layouts in `screens/` (Dashboard agenda + rail, Schedule people timeline, Gantt charts, People & Resources card grid with a person drawer, tabbed Projects & Clients, Reports rail + chart), rendered in the SRA palette rather than the reference's purple (NFR-USE-1). Adds `TimelineGrid`, `SidePanel`, `PersonPanel`, `CollapsibleSection`, `AppAvatar`/`AvatarStack`, tabbed `ProjectFormModal` and sectioned `PersonFormModal`, plus page-scroll locking for overlays. API side: `Project.team` roster on list/detail and `effortUnit` on Gantt bars (both added to `docs/openapi.yaml`), covered by new `ProjectsTests`. See `web/README.md` for the screen map and the list of reference features deliberately not built.
 - [x] **Gantt UI (FR-GANTT-*)** — 2026-09-02: `/gantt` renders `/dashboard/gantt` for both the projects and resources views; `/schedule` is the day-level people view.
 - [x] **Accessibility pass (NFR-USE-2, WCAG 2.1 AA)** — resolves review finding W-M1 (2026-07-05): skip link, keyboard-reachable row links, modal focus trap/Escape/labelling, toast live region + keyboard dismiss, `label for=` on all fields, `th scope`, visible focus indicators, contrast-compliant tokens (muted text, amber, success toast, input borders), single `h1` per page, reduced-motion support.
+
+- [x] **Reference-app data model (V002)** — 2026-09-02: `db/migrations/V002__reference_app_model.sql` adds `project_phase`, `project_milestone`, `time_off` and the `activity_type` pick-list; extends `resource` with the full person profile (job role, manager, phone, secondary skills, security clearances + NPC date, certifications, time zone, bookable status, public holiday calendar, default rate, colour), `project` with budget type / hour budgets / activity types / details / colour, and `allocation` with an hourly rate. SRS raised to v1.1 (§3.6–§3.9, FR-PHASE-*, FR-MILE-*, FR-TIMEOFF-*, FR-RES-8/9, FR-PRJ-8/9, FR-ALL-8, FR-REP-6); `docs/openapi.yaml` gains the matching schemas and the `/projects/{id}/phases`, `/projects/{id}/milestones` and `/timeoff` paths. 17 new integration tests (`ReferenceModelTests`), 53 passing. The test fixture now applies **all** `V*.sql` in order, so future migrations need no fixture edit.
+
+## Open items from the V002 model
+
+- [ ] **Time off does not yet reduce over-allocation warnings.** `AllocationService` still compares effort against gross weekly availability, so a person fully on leave is not flagged differently. Reporting *does* account for leave (`effectiveCapacityHours`). Decide whether the warning should use effective capacity — this is open question #7 in `docs/Requirements.md` §8.
+- [ ] **Public holiday calendar is stored but not expanded** — `publicHolidayCalendar` holds a region key; nothing generates `publicHoliday` time-off rows from it (§8 #8).
+- [ ] **Manager cycles** — only direct self-reference is rejected; A → B → A is possible. A full ancestry check needs a recursive query on every write (§8 #9).
+- [ ] **Time-off CRUD has no dedicated UI.** The API is complete (`/v1/timeoff`) and leave renders read-only on the Schedule and person drawer, but there is no add/edit dialog yet — records must be created through the API.
+- [ ] **Allocation hourly rate is not in the allocation dialogs.** The column, DTO and contract exist; the project Team tab and `AllocationEditModal` do not expose it yet.
+- [ ] **Phases do not drive allocation** — they are presentational only (§8 #10).
 
 ## Next up — additional test slices
 
