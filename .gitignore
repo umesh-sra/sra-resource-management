@@ -20,3 +20,6 @@ web/.vite/
 # IDE
 .vs/
 .idea/
+
+# Reference-app screenshots: contain real staff names/photos and client data.
+screens/

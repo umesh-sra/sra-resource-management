@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { useScrollLock } from '@/lib/scrollLock'
 
-defineProps<{ title: string }>()
+withDefaults(defineProps<{ title: string; maxWidth?: number }>(), { maxWidth: 540 })
 const emit = defineEmits<{ close: [] }>()
+
+useScrollLock()
 
 const titleId = useId()
 const modalEl = ref<HTMLElement | null>(null)
@@ -53,11 +56,19 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="modal-backdrop" @click.self="emit('close')" @keydown="onKeydown">
-    <div class="modal" role="dialog" aria-modal="true" :aria-labelledby="titleId" ref="modalEl" tabindex="-1">
+    <div
+      class="modal" role="dialog" aria-modal="true" :aria-labelledby="titleId"
+      ref="modalEl" tabindex="-1" :style="{ maxWidth: `${maxWidth}px` }"
+    >
       <div class="modal-head">
-        <h2 :id="titleId">{{ title }}</h2>
+        <div class="title-with-icon">
+          <slot name="head-icon" />
+          <h2 :id="titleId">{{ title }}</h2>
+        </div>
         <button class="btn btn-ghost btn-sm modal-close" aria-label="Close dialog" @click="emit('close')">✕</button>
       </div>
+      <!-- Optional strip between the title and the body (e.g. dialog tabs). -->
+      <slot name="subhead" />
       <div class="modal-body">
         <slot />
       </div>

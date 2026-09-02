@@ -14,8 +14,13 @@ public static class Mapping
         UpdatedAt = c.UpdatedAt,
     };
 
-    public static ProjectDto ToDto(this Project p) => new()
+    /// <param name="team">
+    /// Optional roster for the project. Callers that have not loaded allocations
+    /// pass null and get an empty list rather than a lazy-load surprise.
+    /// </param>
+    public static ProjectDto ToDto(this Project p, IReadOnlyList<ResourceSummaryDto>? team = null) => new()
     {
+        Team = team ?? [],
         Id = p.Id,
         ClientId = p.ClientId,
         ClientName = p.Client?.Name,

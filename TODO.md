@@ -10,6 +10,8 @@ See `docs/Requirements.md` for the full spec and `docs/openapi.yaml` for the API
 - [x] **Tests (initial)** — `tests/SraRms.Api.Tests`: AllocationService unit tests + integration tests for clients, allocations, resources, reports (Testcontainers Postgres). 18 passing.
 - [x] **Front end (initial)** — `web/` Vue 3 + Vite + TS SPA: layout/nav, dashboard, clients, projects, resources (all list + create + detail), allocations, utilisation report. Wired to the live API.
 - [x] **Security headers (NFR-SEC-1, NFR-SEC-4)** — 2026-07-05: API middleware sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, strict CSP (Swagger exempt), and default `Cache-Control: no-store` on every response, + HSTS/HTTPS-redirect outside Development (integration-tested in `SecurityHeadersTests`); Vite dev/preview servers send the non-CSP subset; production hosting CSP documented in `web/README.md`. Note: the deployment guide (below) must wire forwarded headers if TLS terminates at a proxy.
+- [x] **Reference-app UI rebuild** — 2026-09-02: the SPA now follows the information architecture and screen layouts in `screens/` (Dashboard agenda + rail, Schedule people timeline, Gantt charts, People & Resources card grid with a person drawer, tabbed Projects & Clients, Reports rail + chart), rendered in the SRA palette rather than the reference's purple (NFR-USE-1). Adds `TimelineGrid`, `SidePanel`, `PersonPanel`, `CollapsibleSection`, `AppAvatar`/`AvatarStack`, tabbed `ProjectFormModal` and sectioned `PersonFormModal`, plus page-scroll locking for overlays. API side: `Project.team` roster on list/detail and `effortUnit` on Gantt bars (both added to `docs/openapi.yaml`), covered by new `ProjectsTests`. See `web/README.md` for the screen map and the list of reference features deliberately not built.
+- [x] **Gantt UI (FR-GANTT-*)** — 2026-09-02: `/gantt` renders `/dashboard/gantt` for both the projects and resources views; `/schedule` is the day-level people view.
 - [x] **Accessibility pass (NFR-USE-2, WCAG 2.1 AA)** — resolves review finding W-M1 (2026-07-05): skip link, keyboard-reachable row links, modal focus trap/Escape/labelling, toast live region + keyboard dismiss, `label for=` on all fields, `th scope`, visible focus indicators, contrast-compliant tokens (muted text, amber, success toast, input borders), single `h1` per page, reduced-motion support.
 
 ## Next up — additional test slices
@@ -40,8 +42,9 @@ The Dev auth handler currently grants all three roles, so role restrictions are 
 
 ## Backlog (not yet started)
 
-- [ ] **Gantt UI** (FR-GANTT-*) — surface `/dashboard/gantt` (projects + resources views) in the SPA; the API already returns the data.
-- [ ] **Front-end polish** — role-aware UI (hide writes for non-admins), reference-data pick-lists in forms, loading/error states pass. (Edit forms for clients/projects/resources/allocations added 2026-07-03.)
+- [ ] **Front-end polish** — role-aware UI (hide writes for non-admins), reference-data pick-lists in forms (`/reference/*` is implemented server-side but the new person/project dialogs still use free-text for job title, department and location).
+- [ ] **Person photos** — the person dialog uploads via `PUT /resources/{id}/image`, but there is no way to remove a photo, and the people grid falls back to initials tiles. The reference grid is photo-led, so bulk import / upload UX is worth revisiting.
+- [ ] **Reference features not built** (no data model behind them) — Timesheets, Time Off, project Phases and Milestones, hour-based budgets, per-person charge-out rates. Each needs a schema + `docs/openapi.yaml` change before any UI.
 - [ ] **Real Entra ID auth** — both tiers: replace `AzureAd` placeholders + AD group→role mapping (SRS #5) in the API, and attach MSAL bearer tokens in `web/src/api/http.ts`.
 - [ ] **CI** — pipeline to run `dotnet build` + `dotnet test` (Docker available on the runner for integration tests).
 - [ ] **Deployment guide & artifacts** (SRS §7).

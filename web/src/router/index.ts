@@ -1,22 +1,38 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
+/**
+ * Routes follow the reference application's information architecture:
+ * Clients live inside "Projects & Clients", and a person's record is a drawer
+ * over the People grid (so /people/:id is deep-linkable). The pre-existing
+ * /resources and /allocations paths redirect to their new homes.
+ */
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard' },
   { path: '/dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: 'Dashboard' } },
-  { path: '/clients', name: 'clients', component: () => import('@/views/ClientsView.vue'), meta: { title: 'Clients' } },
-  { path: '/clients/:id', name: 'client', component: () => import('@/views/ClientDetailView.vue'), meta: { title: 'Client' } },
-  { path: '/projects', name: 'projects', component: () => import('@/views/ProjectsView.vue'), meta: { title: 'Projects' } },
+  { path: '/schedule', name: 'schedule', component: () => import('@/views/ScheduleView.vue'), meta: { title: 'Schedule' } },
+  { path: '/gantt', name: 'gantt', component: () => import('@/views/GanttView.vue'), meta: { title: 'Gantt Charts' } },
+
+  { path: '/people', name: 'people', component: () => import('@/views/PeopleView.vue'), meta: { title: 'People & Resources' } },
+  { path: '/people/:id', name: 'person', component: () => import('@/views/PeopleView.vue'), meta: { title: 'Person' } },
+
+  { path: '/projects', name: 'projects', component: () => import('@/views/WorkView.vue'), meta: { title: 'Projects & Clients' } },
   { path: '/projects/:id', name: 'project', component: () => import('@/views/ProjectDetailView.vue'), meta: { title: 'Project' } },
-  { path: '/resources', name: 'resources', component: () => import('@/views/ResourcesView.vue'), meta: { title: 'Resources' } },
-  { path: '/resources/:id', name: 'resource', component: () => import('@/views/ResourceDetailView.vue'), meta: { title: 'Resource' } },
-  { path: '/allocations', name: 'allocations', component: () => import('@/views/AllocationsView.vue'), meta: { title: 'Allocations' } },
+  { path: '/clients', name: 'clients', component: () => import('@/views/WorkView.vue'), meta: { title: 'Projects & Clients' } },
+  { path: '/clients/:id', name: 'client', component: () => import('@/views/ClientDetailView.vue'), meta: { title: 'Client' } },
+
   { path: '/reports', name: 'reports', component: () => import('@/views/ReportsView.vue'), meta: { title: 'Reports' } },
+
+  // Legacy paths from the previous navigation.
+  { path: '/resources', redirect: '/people' },
+  { path: '/resources/:id', redirect: (to) => `/people/${to.params.id}` },
+  { path: '/allocations', redirect: '/schedule' },
 ]
 
 export const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior: () => ({ top: 0 }),
+  // Opening the person drawer must not yank the grid back to the top.
+  scrollBehavior: (to, from) => (to.path.startsWith('/people') && from.path.startsWith('/people') ? false : { top: 0 }),
 })
 
 router.afterEach((to) => {

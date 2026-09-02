@@ -46,8 +46,47 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
 
         var total = await q.CountAsync(ct);
         var items = await q.Skip(query.Skip).Take(query.PageSize).ToListAsync(ct);
-        var dtos = items.Select(p => p.ToDto()).ToList();
+        var teams = await TeamsForAsync(items.Select(p => p.Id).ToList(), ct);
+        var dtos = items
+            .Select(p => p.ToDto(teams.TryGetValue(p.Id, out var t) ? t : []))
+            .ToList();
         return Ok(Page<ProjectDto>.Create(dtos, query.Page, query.PageSize, total));
+    }
+
+    /// <summary>
+    /// Distinct allocated people per project, in one round trip for the whole page.
+    /// </summary>
+    private async Task<Dictionary<Guid, List<ResourceSummaryDto>>> TeamsForAsync(
+        IReadOnlyCollection<Guid> projectIds, CancellationToken ct)
+    {
+        if (projectIds.Count == 0) return [];
+
+        var rows = await db.Allocations.AsNoTracking()
+            .Where(a => projectIds.Contains(a.ProjectId))
+            .Select(a => new
+            {
+                a.ProjectId,
+                a.ResourceId,
+                a.Resource!.Name,
+                a.Resource.PrimaryJobTitle,
+                a.Resource.ImageUrl,
+            })
+            .Distinct()
+            .ToListAsync(ct);
+
+        return rows
+            .GroupBy(r => r.ProjectId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                      .Select(r => new ResourceSummaryDto
+                      {
+                          Id = r.ResourceId,
+                          Name = r.Name,
+                          PrimaryJobTitle = r.PrimaryJobTitle,
+                          ImageUrl = r.ImageUrl,
+                      })
+                      .ToList());
     }
 
     // POST /projects
@@ -109,6 +148,13 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             Status = dto.Status,
             CreatedAt = dto.CreatedAt,
             UpdatedAt = dto.UpdatedAt,
+            Team = project.Allocations
+                .Where(a => a.Resource is not null)
+                .Select(a => a.Resource!)
+                .DistinctBy(r => r.Id)
+                .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(r => r.ToSummary())
+                .ToList(),
             Allocations = project.Allocations.Select(a => a.ToDto()).ToList(),
         };
         return Ok(detail);

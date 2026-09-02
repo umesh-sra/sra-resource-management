@@ -88,6 +88,52 @@ public class ProjectsTests(ApiFixture fx) : IntegrationTestBase(fx)
     }
 
     [Fact]
+    public async Task List_carries_the_distinct_team_per_project()
+    {
+        var client = await CreateClient("Initech");
+        var project = await CreateProject(client.Id, "INI-1", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
+        var jane = await CreateResource("jane.doe@sra.com.au", 38);
+        var raj = await CreateResource("raj.patel@sra.com.au", 38);
+
+        // Jane twice, on two separate stints: she must still appear once.
+        await AllocateAsync(project.Id, jane.Id, new DateOnly(2026, 2, 1), new DateOnly(2026, 4, 30));
+        await AllocateAsync(project.Id, jane.Id, new DateOnly(2026, 7, 1), new DateOnly(2026, 9, 30));
+        await AllocateAsync(project.Id, raj.Id, new DateOnly(2026, 3, 1), new DateOnly(2026, 6, 30));
+
+        var page = await Client.GetFromJsonAsync<Page<ProjectDto>>(
+            $"/v1/projects?clientId={client.Id}", ApiFixture.Json);
+
+        var listed = Assert.Single(page!.Items);
+        Assert.Equal(2, listed.Team.Count);
+        Assert.Equal(["jane.doe", "raj.patel"], listed.Team.Select(t => t.Name).ToArray());
+        Assert.All(listed.Team, t => Assert.Equal("Engineer", t.PrimaryJobTitle));
+    }
+
+    [Fact]
+    public async Task Team_is_empty_for_a_project_with_no_allocations()
+    {
+        var client = await CreateClient("Umbrella");
+        await CreateProject(client.Id, "UMB-1", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
+
+        var page = await Client.GetFromJsonAsync<Page<ProjectDto>>(
+            $"/v1/projects?clientId={client.Id}", ApiFixture.Json);
+
+        Assert.Empty(Assert.Single(page!.Items).Team);
+    }
+
+    [Fact]
+    public async Task Detail_carries_the_team_alongside_allocations()
+    {
+        var (project, resource) = await SeedProjectWithResource();
+        await AllocateAsync(project.Id, resource.Id, new DateOnly(2026, 2, 1), new DateOnly(2026, 6, 30));
+
+        var detail = await Client.GetFromJsonAsync<ProjectDetailDto>($"/v1/projects/{project.Id}", ApiFixture.Json);
+
+        Assert.Equal(resource.Id, Assert.Single(detail!.Team).Id);
+        Assert.Single(detail.Allocations);
+    }
+
+    [Fact]
     public async Task Shrinking_window_with_no_allocations_succeeds()
     {
         var client = await CreateClient("Globex");

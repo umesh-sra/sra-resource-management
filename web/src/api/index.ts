@@ -1,7 +1,7 @@
 import { http } from './http'
 import type {
-  Allocation, Client, ClientDetail, DashboardSummary, Page, Project, ProjectDetail,
-  ReferenceItem, Resource, ResourceDetail, UtilisationReport,
+  Allocation, Client, ClientDetail, DashboardSummary, GanttResponse, GanttView, Page,
+  Project, ProjectDetail, ReferenceItem, Resource, ResourceDetail, UtilisationReport,
 } from '@/types'
 
 // ---- Clients ----
@@ -49,6 +49,10 @@ export const resourcesApi = {
     http.put<Resource>(`/resources/${id}`, body).then((r) => r.data),
   remove: (id: string, cascade = false) =>
     http.delete(`/resources/${id}`, { params: { cascade } }),
+  /** Profile photo. The API takes the raw bytes with an image content type. */
+  uploadImage: (id: string, file: File) =>
+    http.put<Resource>(`/resources/${id}/image`, file, { headers: { 'Content-Type': file.type } })
+      .then((r) => r.data),
 }
 
 // ---- Allocations ----
@@ -65,6 +69,8 @@ export const allocationsApi = {
 export const dashboardApi = {
   summary: (params: { from?: string; to?: string } = {}) =>
     http.get<DashboardSummary>('/dashboard/summary', { params }).then((r) => r.data),
+  gantt: (params: { view: GanttView; from: string; to: string; clientId?: string; department?: string }) =>
+    http.get<GanttResponse>('/dashboard/gantt', { params }).then((r) => r.data),
 }
 
 // ---- Reports ----

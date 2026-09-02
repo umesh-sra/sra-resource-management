@@ -43,6 +43,8 @@ export interface Project {
   remaining?: number
   billable: boolean
   status: ProjectStatus
+  /** Distinct people allocated to the project (list + detail responses). */
+  team: ResourceSummary[]
   createdAt: string
   updatedAt: string
 }
@@ -107,6 +109,31 @@ export interface DashboardSummary {
   budgetAtRisk: number
   upcomingProjectStarts: Project[]
   upcomingRollOffs: Allocation[]
+}
+
+export type GanttView = 'projects' | 'resources'
+
+export interface GanttBar {
+  refId?: string
+  label?: string
+  start: string
+  end: string
+  effort?: number
+  effortUnit?: EffortUnit
+  overAllocated?: boolean
+}
+
+export interface GanttRow {
+  id: string
+  label: string
+  bars: GanttBar[]
+}
+
+export interface GanttResponse {
+  view: GanttView
+  from: string
+  to: string
+  rows: GanttRow[]
 }
 
 export interface UtilisationRow {

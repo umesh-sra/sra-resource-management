@@ -71,6 +71,13 @@ public record ProjectDto
     public decimal? Remaining { get; init; }
     public bool Billable { get; init; }
     public ProjectStatus Status { get; init; }
+
+    /// <summary>
+    /// Distinct people allocated to the project. Present on list responses so the
+    /// projects grid can render a team roster without an extra call per row.
+    /// </summary>
+    public IReadOnlyList<ResourceSummaryDto> Team { get; init; } = [];
+
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
 }
@@ -212,6 +219,8 @@ public record GanttBarDto
     public DateOnly Start { get; init; }
     public DateOnly End { get; init; }
     public double? Effort { get; init; }
+    /// <summary>Unit for <see cref="Effort"/>, so a bar can be labelled without a second lookup.</summary>
+    public EffortUnit? EffortUnit { get; init; }
     public bool? OverAllocated { get; init; }
 }
 

@@ -26,14 +26,41 @@ SPA origin (`http://localhost:5173` by default).
 src/
   api/        http.ts (axios + problem+json -> ApiError) and endpoint modules
   types/      TS mirrors of the API DTOs
-  lib/        formatting helpers (dates, money, status badges)
+  lib/        format.ts (dates, money, status badges, timeline date maths),
+              scrollLock.ts (page-scroll lock for open overlays)
   stores/     Pinia (toast notifications)
-  components/ Layout chrome + reusable bits (ModalDialog, PagerBar, ToastHost)
-  views/      One per route: Dashboard, Clients(+detail), Projects(+detail),
-              Resources(+detail), Allocations, Reports
+  components/ AppAvatar, AvatarStack, TimelineGrid, SidePanel, ModalDialog,
+              CollapsibleSection, PagerBar, ToastHost, and the record dialogs
+              (PersonFormModal, ProjectFormModal, AllocationEditModal, PersonPanel)
+  views/      Dashboard, Schedule, Gantt, People, Work (Projects & Clients),
+              ProjectDetail, ClientDetail, Reports
   router/     routes + titles
   styles/     main.css — design tokens + base component classes
 ```
+
+## Screen layout
+
+The information architecture and screen layouts follow the reference application
+captured in `screens/`:
+
+| Route | Screen | Reference |
+| --- | --- | --- |
+| `/dashboard` | Month agenda + portfolio rail | `dashboard.png` |
+| `/schedule` | People × days timeline | `schedule.png` |
+| `/gantt` | Project (or people) Gantt | — |
+| `/people`, `/people/:id` | Photo-card grid + person drawer | `people and resources.png`, `person_overview.png`, `person_projects.png` |
+| `/projects`, `/clients` | Tabbed table with team rosters | `projects and clients.png` |
+| `/reports` | Report rail + chart + figures | `reports.png` |
+
+Create dialogs mirror `new_person_*.png` and `new_project*.png`.
+
+**Deliberate departures.** Colour follows the SRA brand rather than the
+reference's purple (NFR-USE-1). Reference features with no counterpart in the
+data model or `docs/openapi.yaml` are omitted rather than mocked: Timesheets,
+Time Off, project Phases and Milestones, hour-based budgets, per-person
+charge-out rates, invitation emails, and per-person permission roles (roles come
+from AD groups, SRS §5). The Reports rail lists the unavailable standard reports
+explicitly so the gap is visible rather than silent.
 
 ## Conventions
 
@@ -43,7 +70,11 @@ src/
 - **Errors**: the axios interceptor unwraps RFC 9457 problem details into an
   `ApiError`; views surface `e.message` through the toast store.
 - **Over-allocation**: creating an allocation that exceeds capacity still succeeds
-  (HTTP 201) but returns a `warnings[]` array, shown to the user as a toast.
+  (HTTP 201) but returns a `warnings[]` array, shown to the user as a toast and
+  rendered as a red bar on the Schedule.
+- **Overlays**: `ModalDialog` and `SidePanel` both trap focus, close on Escape,
+  restore focus to their opener, and lock page scroll via `lib/scrollLock.ts`
+  (locks are reference-counted so a dialog opened from the drawer nests safely).
 
 ## Production hosting headers
 

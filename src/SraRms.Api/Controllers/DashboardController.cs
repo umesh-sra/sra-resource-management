@@ -111,6 +111,7 @@ public class DashboardController(AppDbContext db) : BaseApiController
                     Start = Max(a.StartDate, from),
                     End = Min(a.EndDate, to),
                     Effort = (double)a.Effort,
+                    EffortUnit = a.EffortUnit,
                     OverAllocated = false,
                 }).ToList())).ToList();
     }
@@ -135,6 +136,7 @@ public class DashboardController(AppDbContext db) : BaseApiController
                     Start = Max(a.StartDate, from),
                     End = Min(a.EndDate, to),
                     Effort = (double)a.Effort,
+                    EffortUnit = a.EffortUnit,
                     OverAllocated = IsOverAllocatedDuring(r, a),
                 }).ToList())).ToList();
     }

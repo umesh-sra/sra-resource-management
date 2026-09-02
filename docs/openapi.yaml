@@ -1011,6 +1011,10 @@ components:
           properties:
             id: { type: string, format: uuid }
             clientName: { type: string }
+            team:
+              type: array
+              description: Distinct people allocated to the project.
+              items: { $ref: '#/components/schemas/ResourceSummary' }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
     ProjectDetail:
@@ -1201,6 +1205,7 @@ components:
         start: { type: string, format: date }
         end: { type: string, format: date }
         effort: { type: number, format: double }
+        effortUnit: { $ref: '#/components/schemas/EffortUnit' }
         overAllocated: { type: boolean }
 
     # ---- Reports ----

@@ -1,8 +1,11 @@
 /* ---------------------------------------------------------------------------
    SRA-RMS design tokens + base component styles.
-   Brand colours from brand/BrandGuidelines.pdf §1.05:
-     SRA Deep Blue #002048 · SRA Red #F4004E · SRA Silver #D4E7E3.
-   The --brand-* ramp is built around Deep Blue; --accent is SRA Red.
+
+   Layout, density and interaction patterns follow the reference application in
+   `screens/`. Colour does not: brand/BrandGuidelines.pdf §1.05 governs the
+   palette (NFR-USE-1), so the reference's purple ramp is rendered here in
+   SRA Deep Blue #002048 with SRA Red #F4004E as the accent and
+   SRA Silver #D4E7E3 as the tint.
 --------------------------------------------------------------------------- */
 :root {
   --brand-900: #001428;
@@ -10,10 +13,15 @@
   --brand-700: #062c58;
   --brand-600: #0b3b73;
   --brand-500: #1657a0;
+  --brand-400: #3f7cc4;
+  --brand-200: #b9d0e8;
   --brand-100: #e1ebf5;
+  --brand-50: #f2f7fc;
   --accent: #f4004e;    /* SRA Red */
   --accent-dark: #c8003f;
+  --accent-50: #fff0f4;
   --silver: #d4e7e3;    /* SRA Silver */
+  --silver-dark: #a9cdc6;
 
   --gray-50: #f7f8fa;
   --gray-100: #eef1f4;
@@ -45,7 +53,10 @@
   --radius-sm: 7px;
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
   --shadow: 0 4px 12px rgba(16, 24, 40, 0.08);
-  --sidebar-w: 248px;
+  --shadow-lg: 0 16px 48px rgba(16, 24, 40, 0.18);
+  --sidebar-w: 208px;
+  --sidebar-w-collapsed: 62px;
+  --toolbar-h: 56px;
   --font: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -85,18 +96,31 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible,
 }
 
 h1, h2, h3 { margin: 0; color: var(--gray-900); font-weight: 650; }
-h1 { font-size: 22px; }
-h2 { font-size: 17px; }
-h3 { font-size: 15px; }
+h1 { font-size: 20px; }
+h2 { font-size: 16px; }
+h3 { font-size: 14px; }
 
 /* ---- Layout ---- */
 .layout { display: flex; min-height: 100%; }
 .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.page { padding: 24px 28px; max-width: 1280px; width: 100%; margin: 0 auto; }
-.page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.page { padding: 22px 26px; width: 100%; }
+.page-narrow { max-width: 1280px; margin: 0 auto; }
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .page-header .subtitle { color: var(--text-muted); margin-top: 2px; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.row-nowrap { flex-wrap: nowrap; }
 .spacer { flex: 1; }
+
+/* App toolbar — the white strip at the top of a screen that carries tabs,
+   search and the primary action (see screens/projects and clients.png). */
+.toolbar {
+  min-height: var(--toolbar-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 20px;
+  position: sticky; top: 0; z-index: 20;
+}
 
 /* ---- Cards ---- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
@@ -105,7 +129,7 @@ h3 { font-size: 15px; }
 .grid { display: grid; gap: 16px; }
 .grid-stats { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-/* The .card + .card stacking margin (below) must not leak into grids, where the
+/* The .card + .card stacking margin (above) must not leak into grids, where the
    gap already handles spacing — otherwise it makes the first cell taller. */
 .grid > .card + .card { margin-top: 0; }
 
@@ -130,16 +154,73 @@ h3 { font-size: 15px; }
 .btn-danger:hover { background: #fbe0e0; }
 .btn-sm { padding: 5px 10px; font-size: 12.5px; }
 .btn-ghost { border-color: transparent; background: transparent; }
+.btn-ghost:hover { background: var(--gray-100); }
+/* Pill "＋ New" action, mirroring the reference's primary create control. */
+.btn-pill { border-radius: 999px; padding: 9px 18px 9px 14px; font-weight: 600; }
+.btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn-outline { border-color: var(--brand-500); color: var(--brand-600); background: #fff; }
+.btn-outline:hover { background: var(--brand-50); }
+/* Square icon-only control used in toolbars. */
+.icon-btn {
+  width: 34px; height: 34px; padding: 0; display: inline-grid; place-items: center;
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm);
+  color: var(--gray-600); cursor: pointer;
+}
+.icon-btn:hover { background: var(--gray-50); color: var(--gray-900); }
+.icon-btn.plain { border-color: transparent; background: transparent; }
+.icon-btn.plain:hover { background: var(--gray-100); }
+.icon-btn[aria-pressed='true'] { background: var(--brand-100); border-color: var(--brand-200); color: var(--brand-700); }
+
+/* Segmented control (zoom / view switches in the Schedule toolbar). */
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
+.segmented button {
+  border: 0; background: transparent; padding: 7px 12px; font: inherit; font-size: 12.5px; font-weight: 550;
+  color: var(--gray-600); cursor: pointer;
+}
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button:hover { background: var(--gray-50); }
+.segmented button[aria-pressed='true'] { background: var(--brand-600); color: #fff; }
+
+/* ---- Tabs ---- */
+.tabs { display: flex; gap: 4px; align-items: stretch; }
+.tab {
+  border: 0; background: transparent; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--text-muted); padding: 12px 14px; border-bottom: 3px solid transparent; margin-bottom: -9px;
+}
+.tab:hover { color: var(--gray-900); text-decoration: none; }
+.tab.active { color: var(--brand-700); border-bottom-color: var(--accent); }
+.tab .count { font-weight: 500; color: var(--text-muted); }
 
 /* ---- Forms ---- */
 .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
 .field label { font-size: 12.5px; font-weight: 600; color: var(--gray-700); }
 .input, .select, textarea.input {
-  width: 100%; padding: 8px 11px; border: 1px solid var(--input-border); border-radius: var(--radius-sm);
+  width: 100%; padding: 9px 11px; border: 1px solid var(--input-border); border-radius: var(--radius-sm);
   font: inherit; color: var(--text); background: #fff;
 }
 .input:focus, .select:focus, textarea.input:focus { outline: none; border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-100); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+
+/* Rounded search box with a leading magnifier, as in the reference toolbars. */
+.search { position: relative; display: inline-flex; align-items: center; min-width: 220px; }
+.search .input { padding-right: 34px; border-radius: 8px; }
+.search svg { position: absolute; right: 10px; color: var(--gray-500); pointer-events: none; }
+
+/* Switch — reference uses these for Billable / invitation toggles. */
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 550; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track {
+  width: 38px; height: 21px; border-radius: 999px; background: var(--gray-300);
+  position: relative; transition: background .15s; flex-shrink: 0;
+}
+.switch .track::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px;
+  border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: var(--shadow-sm);
+}
+.switch input:checked + .track { background: var(--brand-600); }
+.switch input:checked + .track::after { transform: translateX(17px); }
+.switch input:focus-visible + .track { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ---- Table ---- */
 .table-wrap { overflow-x: auto; }
@@ -153,6 +234,11 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
    underlines on hover/focus so it is still perceivable as a link. */
 .table a.row-link { color: inherit; }
 .table a.row-link:hover, .table a.row-link:focus-visible { text-decoration: underline; }
+/* Sortable header button — the arrow marks the active sort. */
+.th-sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; text-transform: inherit; letter-spacing: inherit; }
+.th-sort:hover { color: var(--gray-900); }
+.th-sort .arrow { color: var(--accent); font-size: 11px; }
+.truncate { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 
 /* ---- Badges ---- */
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--gray-100); color: var(--gray-700); }
@@ -162,6 +248,15 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .badge.blue { background: var(--brand-100); color: var(--brand-700); }
 .badge.gray { background: var(--gray-100); color: var(--gray-600); }
 .chip { display: inline-block; padding: 2px 9px; border-radius: 6px; background: var(--brand-100); color: var(--brand-700); font-size: 12px; margin: 2px 4px 2px 0; }
+/* Pill used for the read-only attribute values in the person panel. */
+.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; background: var(--gray-100); color: var(--gray-700); font-size: 12.5px; }
+
+/* ---- Avatars ---- */
+.av { border-radius: 50%; object-fit: cover; display: grid; place-items: center; font-weight: 700; color: #fff; flex-shrink: 0; background: var(--brand-500); overflow: hidden; text-transform: uppercase; }
+.av-stack { display: inline-flex; align-items: center; }
+.av-stack > * { margin-left: -8px; box-shadow: 0 0 0 2px var(--surface); }
+.av-stack > *:first-child { margin-left: 0; }
+.av-more { font-size: 12px; color: var(--brand-600); font-weight: 600; margin-left: 8px; }
 
 /* ---- Misc ---- */
 .muted { color: var(--text-muted); }
@@ -180,11 +275,36 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .toast-dismiss { background: none; border: 0; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 2px; margin-left: auto; }
 
 /* ---- Modal ---- */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: flex; align-items: flex-start; justify-content: center; padding: 60px 16px; z-index: 900; }
-.modal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; max-width: 540px; }
-.modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-.modal-body { padding: 18px 20px; }
-.modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; z-index: 900; overflow-y: auto; }
+.modal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); width: 100%; max-width: 540px; display: flex; flex-direction: column; max-height: calc(100vh - 96px); }
+.modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.modal-head .title-with-icon { display: flex; align-items: center; gap: 10px; color: var(--brand-700); }
+.modal-body { padding: 18px 20px; overflow-y: auto; }
+.modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.modal-foot .note { margin-right: auto; color: var(--text-muted); font-size: 12px; max-width: 320px; }
+/* The tinted hint strip the reference puts at the top of its create dialogs. */
+.hint-banner {
+  display: flex; align-items: flex-start; gap: 10px; background: var(--brand-50);
+  border-radius: var(--radius-sm); padding: 12px 14px; color: var(--gray-700); font-size: 13px; margin-bottom: 16px;
+}
+.hint-banner svg { color: var(--brand-500); flex-shrink: 0; margin-top: 1px; }
+
+/* ---- Collapsible section (person / project dialogs and panels) ---- */
+.section { border-top: 1px solid var(--border); }
+.section-head {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: none; border: 0; font: inherit; cursor: pointer; padding: 16px 0; text-align: left; color: var(--gray-900);
+}
+.section-head h3 { font-size: 15px; font-weight: 650; }
+.section-head .chev { color: var(--gray-500); transition: transform .15s; }
+.section-head[aria-expanded='true'] .chev { transform: rotate(180deg); }
+.section-summary { color: var(--text-muted); font-style: italic; font-size: 13px; padding-bottom: 16px; margin: 0; }
+.section-body { padding-bottom: 16px; }
+
+/* ---- Definition list ---- */
+.defs { display: grid; gap: 12px; margin: 0; }
+.defs dt { color: var(--text-muted); font-size: 12px; }
+.defs dd { margin: 3px 0 0; }
 
 /* ---- Utilisation bar ---- */
 .ubar { position: relative; height: 8px; background: var(--gray-200); border-radius: 999px; overflow: hidden; min-width: 90px; }
