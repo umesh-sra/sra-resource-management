@@ -21,6 +21,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/clients/:id', name: 'client', component: () => import('@/views/ClientDetailView.vue'), meta: { title: 'Client' } },
 
   { path: '/reports', name: 'reports', component: () => import('@/views/ReportsView.vue'), meta: { title: 'Reports' } },
+  { path: '/import', name: 'import', component: () => import('@/views/ImportView.vue'), meta: { title: 'Data Import' } },
 
   // Legacy paths from the previous navigation.
   { path: '/resources', redirect: '/people' },

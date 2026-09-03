@@ -20,6 +20,7 @@ public class AllocationsController(AppDbContext db, AllocationService allocation
         [FromQuery] Guid? resourceId,
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] BookingStatus? bookingStatus,
         CancellationToken ct)
     {
         var q = db.Allocations.AsNoTracking()
@@ -29,6 +30,7 @@ public class AllocationsController(AppDbContext db, AllocationService allocation
         if (resourceId is not null) q = q.Where(a => a.ResourceId == resourceId);
         if (from is not null) q = q.Where(a => a.EndDate >= from);
         if (to is not null) q = q.Where(a => a.StartDate <= to);
+        if (bookingStatus is not null) q = q.Where(a => a.BookingStatus == bookingStatus);
 
         var sort = query.ParseSort();
         q = sort?.Field switch
@@ -75,6 +77,7 @@ public class AllocationsController(AppDbContext db, AllocationService allocation
             HourlyRate = body.HourlyRate,
             Details = body.Details,
             BookerId = body.BookerId,
+            BookingStatus = body.BookingStatus,
         };
         db.Allocations.Add(allocation);
         await db.SaveChangesAsync(ct);
@@ -125,6 +128,7 @@ public class AllocationsController(AppDbContext db, AllocationService allocation
         allocation.HourlyRate = body.HourlyRate;
         allocation.Details = body.Details;
         allocation.BookerId = body.BookerId;
+        allocation.BookingStatus = body.BookingStatus;
         await db.SaveChangesAsync(ct);
         // The booker may have changed; reload it so BookerName reflects the write.
         await db.Entry(allocation).Reference(a => a.Booker).LoadAsync(ct);

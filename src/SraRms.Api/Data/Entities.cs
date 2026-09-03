@@ -107,6 +107,12 @@ public class Allocation : AuditableEntity
     /// </summary>
     public Guid? BookerId { get; set; }
     public Resource? Booker { get; set; }
+    /// <summary>
+    /// V004 — how firm the booking is. Descriptive: no capacity arithmetic keys
+    /// off it, so a tentative booking still counts toward over-allocation
+    /// warnings and utilisation.
+    /// </summary>
+    public BookingStatus BookingStatus { get; set; } = BookingStatus.Confirmed;
 }
 
 // ---- V002: reference-application model -------------------------------------

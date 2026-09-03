@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 All three tiers are **implemented and working**: the .NET 9 API (`src/SraRms.Api`) covers every endpoint in `docs/openapi.yaml`, the Vue SPA (`web/`) covers the core screens, the initial schema and dev seed are in `db/`, and unit + integration tests pass in `tests/SraRms.Api.Tests`. When asked to build something, extend the existing code — do not re-scaffold. `TODO.md` is the living backlog (remaining features, test gaps, open questions); `docs/Review-2026-07-03.md` holds the latest code-review findings.
 
+A **Resource Guru importer** loads the incumbent system's report export — see *Data migration* below.
+
 The system is the **SRA Resource Management System (SRA-RMS)** — a web app for SRA (a custom software company) to manage clients, projects, resources (people), and the allocation of resources to projects, with a dashboard, Gantt visualisation, and reporting.
 
 ## Source-of-truth documents
@@ -48,6 +50,45 @@ Business dates: `App:TimeZone` (an IANA name, default `Australia/Adelaide`) sets
 
 Local API auth: `appsettings.Development.json` sets `Auth:Mode=Dev`, which signs every request in as a synthetic all-roles user so endpoints can be exercised without an Entra tenant. This bypass is hard-gated to the Development environment.
 
+## Data migration
+
+SRA's resourcing lives in **Resource Guru** today. `POST /v1/import/resource-guru`
+(Administrator-only, multipart) loads its report export; the SPA's **Data Import**
+screen drives it. `data-migration/README.md` is the field-level mapping and the
+authority on how each source column is interpreted — read it before changing
+`src/SraRms.Api/Services/Import/`.
+
+Points that are easy to get wrong:
+
+- **`dryRun` defaults to `true`.** The run happens inside one transaction that is
+  rolled back for a dry run, so a preview exercises every constraint and reports
+  exactly the counts a commit would. Keep that property: the SPA's two-step
+  Analyse-then-Import flow depends on the two reports being identical.
+- **The importer writes entities directly, not through the controllers**, so it
+  is responsible for the invariants the endpoints enforce in code rather than in
+  the schema — notably the no-overlapping-leave rule and keeping allocations
+  inside their project window.
+- **Resource Guru zeroes `Available Hours` on days taken by leave**, so a
+  person's contract can only be read from the *non-zero* rows. Averaging over all
+  rows records anyone on extended leave as having no capacity at all.
+- **A booking is one row per day** in the export and a date range in SRA-RMS.
+  Runs are folded using the person's own working days, so weekends join but a
+  real mid-week break splits.
+- **Re-runs must stay idempotent.** Natural keys do the matching, and generated
+  project codes are derived from the project and client names (never from a
+  counter over the input) so a second import lands on the same rows.
+- Anything the model cannot hold is reported in the response's `warnings` and
+  `unmappedFields` rather than dropped quietly. As of V004 nothing in the SRA
+  export is dropped: `unmappedFields` comes back empty.
+- **Booking status is part of a booking's identity.** It is in the run key, so a
+  tentative day and a confirmed day on the same project never fold together, and
+  in the dedupe key, so a re-import matches them separately. A re-import against
+  data loaded *before* V004 would therefore duplicate the unconfirmed bookings
+  — those rows were backfilled to `confirmed`. Reload from scratch instead.
+
+The export files are **git-ignored**: they carry real staff names, emails, phone
+numbers and security clearances (NFR-SEC-5).
+
 ## Domain model
 
 Four core entities with this relational shape:
@@ -72,6 +113,7 @@ Key invariants (enforce server-side, per §3.5 of the SRS):
 - Time off does **not** block allocation either, but overlapping leave for the same resource **is** rejected (409) — that is a data error, not a legitimate warning state. Leave reduces `effectiveCapacityHours` in the utilisation report; `utilisation` itself stays measured against **gross** availability so the ratio is comparable across releases.
 - A resource may not be its own manager. `manager_id` is `ON DELETE SET NULL`: being named as a manager is descriptive and must not block a delete. The same reasoning covers `allocation.booker_id` and `time_off.booker_id` (V003) — these three are the only exceptions to the RESTRICT convention.
 - A **booker** (V003) is business data: the person a booking or leave record was arranged by, chosen in the Schedule's day-cell dialog. It is deliberately separate from `created_by`, which is audit attribution stamped from the authenticated principal and never user-editable.
+- **Booking status** (V004: `confirmed` / `tentative` / `waiting`, default `confirmed`) is **descriptive and must stay that way**. No capacity arithmetic keys off it: over-allocation warnings, the dashboard figures and the utilisation ratio count every allocation whatever its status, so those numbers stay comparable across releases and a pencilled-in booking still warns when it would exceed availability. What it drives is visibility — the `?bookingStatus=` filter on the allocations list, `unconfirmedHours` on the utilisation report, and dashed bars on the Schedule and Gantt. Whether reports should *exclude* unconfirmed bookings is a deferred question (§8 no. 10); do not answer it by quietly filtering somewhere.
 
 ## Authn / authz
 

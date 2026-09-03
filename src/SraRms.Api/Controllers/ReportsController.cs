@@ -33,26 +33,34 @@ public class ReportsController(AppDbContext db) : BaseApiController
         var rows = resources.Select(r =>
         {
             var available = (double)r.AvailabilityHoursPerWeek * weeks;
-            var allocated = r.Allocations
-                .Where(a => a.StartDate <= to && from <= a.EndDate)
-                .Sum(a => (double)AllocationService.WeeklyHours(a.Effort, a.EffortUnit, r.AvailabilityHoursPerWeek)
-                          * WeeksOverlap(a.StartDate, a.EndDate, from, to));
+            var inWindow = r.Allocations.Where(a => a.StartDate <= to && from <= a.EndDate).ToList();
+
+            double Hours(Allocation a) =>
+                (double)AllocationService.WeeklyHours(a.Effort, a.EffortUnit, r.AvailabilityHoursPerWeek)
+                * WeeksOverlap(a.StartDate, a.EndDate, from, to);
+
+            var allocated = inWindow.Sum(Hours);
+            // V004: every status counts toward allocated hours and the ratio;
+            // the unconfirmed share is reported beside them (FR-REP-7), the same
+            // way V002 reports leave without folding it into utilisation.
+            var unconfirmed = inWindow.Where(a => a.BookingStatus != BookingStatus.Confirmed).Sum(Hours);
             var util = available > 0 ? allocated / available : 0;
             var timeOff = TimeOffHours(r, from, to);
             return new UtilisationRow(r.Id, r.Name, r.Department,
                 Math.Round(available, 2), Math.Round(allocated, 2), Math.Round(util, 4),
-                Math.Round(timeOff, 2), Math.Round(Math.Max(0, available - timeOff), 2));
+                Math.Round(timeOff, 2), Math.Round(Math.Max(0, available - timeOff), 2),
+                Math.Round(unconfirmed, 2));
         }).ToList();
 
         if (IsCsv(format))
             return Csv("utilisation.csv",
                 ["resourceId", "resourceName", "department", "availableHours", "allocatedHours", "utilisation",
-                 "timeOffHours", "effectiveCapacityHours"],
+                 "timeOffHours", "effectiveCapacityHours", "unconfirmedHours"],
                 rows.Select(r => new[]
                 {
                     r.ResourceId.ToString(), r.ResourceName, r.Department ?? "",
                     Num(r.AvailableHours), Num(r.AllocatedHours), Num(r.Utilisation),
-                    Num(r.TimeOffHours), Num(r.EffectiveCapacityHours),
+                    Num(r.TimeOffHours), Num(r.EffectiveCapacityHours), Num(r.UnconfirmedHours),
                 }));
 
         return Ok(new UtilisationReportDto(from, to, rows));

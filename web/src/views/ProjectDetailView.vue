@@ -4,7 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { allocationsApi, projectsApi, resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
 import type { Allocation, EffortUnit, ProjectDetail, Resource } from '@/types'
-import { fmtDate, fmtMoney, milestoneBadge, milestoneLabel, projectStatus } from '@/lib/format'
+import {
+  bookingStatusBadge, bookingStatusLabel, fmtDate, fmtMoney, milestoneBadge, milestoneLabel,
+  projectStatus,
+} from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import ModalDialog from '@/components/ModalDialog.vue'
 import AllocationEditModal from '@/components/AllocationEditModal.vue'
@@ -165,6 +168,7 @@ onMounted(load)
               <tr>
                 <th scope="col">Person</th><th scope="col">Role</th><th scope="col">Dates</th>
                 <th scope="col" class="num">Effort</th><th scope="col">Billable</th>
+                <th scope="col">Status</th>
                 <th scope="col"><span class="sr-only">Actions</span></th>
               </tr>
             </thead>
@@ -180,12 +184,17 @@ onMounted(load)
                 <td>{{ fmtDate(a.startDate) }} – {{ fmtDate(a.endDate) }}</td>
                 <td class="num">{{ a.effort }} {{ a.effortUnit === 'percent' ? '%' : 'h/wk' }}</td>
                 <td><span class="badge" :class="a.billable ? 'green' : 'gray'">{{ a.billable ? 'Billable' : 'Non-billable' }}</span></td>
+                <td>
+                  <span class="badge" :class="bookingStatusBadge(a.bookingStatus)">
+                    {{ bookingStatusLabel(a.bookingStatus) }}
+                  </span>
+                </td>
                 <td class="num" @click.stop>
                   <button class="btn btn-sm" @click="editAlloc = a">Edit<span class="sr-only"> allocation of {{ a.resourceName }}</span></button>
                   <button class="btn btn-sm btn-danger" @click="removeAllocation(a)">Remove<span class="sr-only"> allocation of {{ a.resourceName }}</span></button>
                 </td>
               </tr>
-              <tr v-if="!project.allocations.length"><td colspan="6" class="empty">No one allocated yet.</td></tr>
+              <tr v-if="!project.allocations.length"><td colspan="7" class="empty">No one allocated yet.</td></tr>
             </tbody>
           </table>
         </div>

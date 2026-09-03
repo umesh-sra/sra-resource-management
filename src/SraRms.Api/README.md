@@ -32,11 +32,14 @@ environment; any other environment requires real Entra tokens.
 Auth/          Role + policy constants; DevAuthHandler (local-only bypass)
 Contracts/     DTOs matching the OpenAPI schemas, paging, entity->DTO mapping
 Controllers/   One controller per OpenAPI tag (Clients, Projects, Resources,
-               Allocations, TimeOff, Dashboard, Reports, ReferenceData).
+               Allocations, TimeOff, Dashboard, Reports, ReferenceData, Import).
                Project phases and milestones are sub-resources of
                ProjectsController (/projects/{id}/phases, /milestones).
 Data/          EF Core entities, enums ([PgName] -> DB labels), AppDbContext
 Services/      AllocationService — window validation + over-allocation maths
+Services/Import/  Resource Guru migration: CsvTable (RFC 4180 reader),
+               ResourceGuruArchive (.zip sheet discovery), ResourceGuruSource
+               (parse + group), ResourceGuruImporter (write), ImportReport
 Program.cs     DI, EF/Npgsql + enum mapping, auth, RBAC policies, CORS, JSON
 ```
 
@@ -54,5 +57,14 @@ Program.cs     DI, EF/Npgsql + enum mapping, auth, RBAC policies, CORS, JSON
 - **Over-allocation** is never blocking — it surfaces as the `warnings[]` array on
   a created/updated allocation (FR-ALL-6). Allocation dates outside the project
   window are a hard 400 (FR-ALL-5).
+- **Booking status** (V004) is descriptive: nothing in `AllocationService`,
+  `DashboardController` or the utilisation ratio filters on it, so a tentative
+  booking still consumes capacity and still warns. The utilisation report states
+  the unconfirmed share separately (`unconfirmedHours`, FR-REP-7).
 - **Audit**: `created_by`/`updated_by` are stamped from the authenticated user and
   timestamps maintained in `AppDbContext.SaveChanges`.
+- **Import** (`POST /import/resource-guru`, Administrator) runs inside a single
+  transaction which `dryRun` rolls back, so a preview and its commit report
+  identical counts. It writes entities directly rather than through the
+  controllers, so it enforces the code-level invariants itself. Field mapping and
+  the reasoning behind each derived value: `data-migration/README.md`.

@@ -52,6 +52,10 @@ const nav = [
     to: '/reports', label: 'Reports',
     icon: 'M4 20V9h4v11H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z',
   },
+  {
+    to: '/import', label: 'Data Import',
+    icon: 'M12 3l5 5h-3v6h-4V8H7l5-5ZM5 18h14v2H5v-2Z',
+  },
 ]
 
 /** A nav item is active for its own prefix and for any aliased prefix. */

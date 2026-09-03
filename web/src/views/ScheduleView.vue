@@ -3,7 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { allocationsApi, dashboardApi, resourcesApi, timeOffApi } from '@/api'
 import { ApiError } from '@/api/http'
 import type { Allocation, GanttBar, GanttResponse, GanttRow, Resource } from '@/types'
-import { addDays, effortPerDay, isoDate, parseDate, startOfWeek, timeOffLabel } from '@/lib/format'
+import {
+  addDays, bookingStatusLabel, effortPerDay, isUnconfirmed, isoDate, parseDate, startOfWeek,
+  timeOffLabel,
+} from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import TimelineGrid from '@/components/TimelineGrid.vue'
 import AppAvatar from '@/components/AppAvatar.vue'
@@ -54,8 +57,20 @@ const departments = computed(() =>
   [...new Set(resources.value.map((r) => r.department).filter(Boolean) as string[])].sort(),
 )
 
+/**
+ * "Unconfirmed only" filters client-side rather than through the gantt endpoint:
+ * the rows are already loaded, and filtering server-side would drop the
+ * confirmed bookings that give an unconfirmed one its context on the row.
+ */
+const unconfirmedOnly = ref(false)
+
 const rows = computed<GanttRow[]>(() => {
-  const rowsIn = data.value?.rows ?? []
+  let rowsIn = data.value?.rows ?? []
+  if (unconfirmedOnly.value) {
+    rowsIn = rowsIn
+      .map((r) => ({ ...r, bars: r.bars.filter((b) => isUnconfirmed(b.bookingStatus)) }))
+      .filter((r) => r.bars.length > 0)
+  }
   const term = q.value.trim().toLowerCase()
   if (!term) return rowsIn
   return rowsIn.filter((r) => {
@@ -156,7 +171,12 @@ function barText(bar: GanttBar, row: GanttRow): string {
         Number(meta?.availabilityHoursPerWeek ?? 38), meta?.workingDays?.length || 5,
       )
     : ''
-  return effort ? `${effort} · ${bar.label ?? ''}` : (bar.label ?? '')
+  const text = effort ? `${effort} · ${bar.label ?? ''}` : (bar.label ?? '')
+  // Only unconfirmed bookings are annotated: labelling the confirmed majority
+  // would push the project name out of the bar for no information gain.
+  return isUnconfirmed(bar.bookingStatus)
+    ? `${text} (${bookingStatusLabel(bar.bookingStatus!).toLowerCase()})`
+    : text
 }
 
 onMounted(load)
@@ -192,6 +212,11 @@ onMounted(load)
       <option value="">All departments</option>
       <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
     </select>
+
+    <label class="switch" title="Show only tentative and waiting bookings">
+      <input type="checkbox" v-model="unconfirmedOnly" /><span class="track" />
+      <span>Unconfirmed only</span>
+    </label>
   </div>
 
   <div class="page">
@@ -229,7 +254,10 @@ onMounted(load)
     </TimelineGrid>
 
     <p class="muted legend">
-      Bars in red exceed the person's weekly availability — over-allocation is flagged, not blocked (FR-ALL-6). Select a bar to edit that allocation, or a free day to add a booking or time off. Hatched blocks are time off (FR-TIMEOFF-5).</p>
+      Bars in red exceed the person's weekly availability — over-allocation is flagged, not blocked
+      (FR-ALL-6). Dashed bars are bookings that are not yet firm; they still count toward capacity
+      (FR-ALL-9). Hatched blocks are time off (FR-TIMEOFF-5). Select a bar to edit that allocation,
+      or a free day to add a booking or time off.</p>
   </div>
 
   <AllocationEditModal

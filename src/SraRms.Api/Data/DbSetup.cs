@@ -20,5 +20,6 @@ public static class DbSetup
             npg.MapEnum<TimeOffType>("time_off_type");
             npg.MapEnum<MilestoneStatus>("milestone_status");
             npg.MapEnum<ProjectBudgetType>("project_budget_type");
+            npg.MapEnum<BookingStatus>("booking_status");
         }).UseSnakeCaseNamingConvention();
 }

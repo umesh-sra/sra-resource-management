@@ -34,6 +34,7 @@ tags:
   - name: Reports
   - name: Reference data
   - name: Time off
+  - name: Import
 
 paths:
   # ---------------- Clients ----------------
@@ -679,7 +680,9 @@ paths:
       tags: [Allocations]
       summary: List allocations
       operationId: listAllocations
-      description: Roles - Administrator, General. Filter by project, resource, or date range.
+      description: >-
+        Roles - Administrator, General. Filter by project, resource, date range,
+        or booking status.
       parameters:
         - name: projectId
           in: query
@@ -693,6 +696,10 @@ paths:
         - name: to
           in: query
           schema: { type: string, format: date }
+        - name: bookingStatus
+          in: query
+          description: Return only bookings with this status, e.g. everything not yet firm.
+          schema: { $ref: '#/components/schemas/BookingStatus' }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
@@ -1026,6 +1033,69 @@ paths:
               schema: { $ref: '#/components/schemas/BudgetReport' }
             text/csv:
               schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------- Import ----------------
+  /import/resource-guru:
+    post:
+      tags: [Import]
+      summary: Import a Resource Guru report export
+      operationId: importResourceGuru
+      description: >-
+        Roles - Administrator. Loads a Resource Guru report export (the .zip as
+        downloaded, or a single exported .csv) into clients, projects, people,
+        allocations, time off and the reference pick-lists (FR-IMP-1..6).
+
+
+        Resource Guru writes one row per booking per day; consecutive days that
+        agree on person, project, details, booker, billability, status and hours
+        are folded into a single allocation, and its per-day hours are converted
+        to the weekly effort SRA-RMS stores. Records that already exist are matched
+        on their natural key - client name, project code, person email, and an
+        allocation's project/person/window - and left untouched, so re-running an
+        import tops up rather than duplicating.
+
+
+        With `dryRun=true` (the default) the whole run happens inside a
+        transaction that is then rolled back: nothing is written, but every
+        constraint is exercised and the report is identical to the one a
+        committed run would produce. Maximum upload 100 MB.
+      parameters:
+        - name: dryRun
+          in: query
+          description: >-
+            Validate and report without writing. Defaults to true, so a client
+            must opt in to changing data.
+          schema: { type: boolean, default: true }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The Resource Guru export (.zip or .csv).
+            encoding:
+              file:
+                contentType: application/zip, text/csv
+      responses:
+        '200':
+          description: The import report. Identical in shape for a dry run and a committed run.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportReport' }
+        '400':
+          description: >-
+            The upload was missing, was not a readable archive, or contained no
+            recognisable Resource Guru sheets.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -1530,6 +1600,7 @@ components:
             Resource the booking was arranged by. Business data chosen in the
             dialog, distinct from the created-by audit stamp; must reference an
             existing resource. Null clears it.
+        bookingStatus: { $ref: '#/components/schemas/BookingStatus' }
     AllocationCreate:
       description: Used when the project is known from the path.
       allOf:
@@ -1639,6 +1710,7 @@ components:
         effort: { type: number, format: double }
         effortUnit: { $ref: '#/components/schemas/EffortUnit' }
         overAllocated: { type: boolean }
+        bookingStatus: { $ref: '#/components/schemas/BookingStatus' }
 
     # ---- Time off ----
     TimeOffBase:
@@ -1727,6 +1799,15 @@ components:
                   availableHours minus timeOffHours. `utilisation` is deliberately
                   measured against gross availableHours, not this figure, so the
                   ratio is unchanged by the V002 model.
+              unconfirmedHours:
+                type: number
+                format: double
+                description: >
+                  The part of allocatedHours that comes from tentative or
+                  waiting bookings (V004, FR-REP-7). Reported alongside rather
+                  than deducted, for the same reason as timeOffHours: it leaves
+                  `utilisation` comparable across releases while showing how
+                  much of the load is not yet firm.
     AllocationReport:
       type: object
       properties:
@@ -1761,6 +1842,19 @@ components:
               percentConsumed: { type: number, format: double }
 
     # ---- Reference data ----
+    BookingStatus:
+      type: string
+      description: >-
+        How firm a booking is. Descriptive only - it changes no capacity
+        arithmetic, so a tentative booking still counts toward over-allocation
+        warnings (FR-ALL-6), the dashboard figures and the utilisation ratio.
+        `waiting` is Resource Guru's "waiting for approval"; SRA-RMS has no
+        approval workflow of its own and carries the value as data. Defaults to
+        `confirmed`, so a client that does not send it keeps the previous
+        behaviour.
+      enum: [confirmed, tentative, waiting]
+      default: confirmed
+
     ReferenceItem:
       type: object
       required: [id, value]
@@ -1773,3 +1867,85 @@ components:
       required: [value]
       properties:
         value: { type: string, minLength: 1 }
+
+    # ---- Import ----
+    ImportReport:
+      type: object
+      description: The outcome of one import run.
+      required: [dryRun, entities]
+      properties:
+        dryRun:
+          type: boolean
+          description: True when the transaction was rolled back and nothing was written.
+        sourceFiles:
+          type: array
+          description: Files found in the upload, whether or not they were read.
+          items: { type: string }
+        sheetsRead:
+          type: array
+          description: Sheets that were recognised and parsed.
+          items:
+            type: string
+            enum: [resources, bookings, downtime, availability, scheduledVsActuals, utilization, timesheets]
+        sourceRows:
+          type: array
+          description: Rows read per sheet, before grouping.
+          items:
+            type: object
+            required: [sheet, rows]
+            properties:
+              sheet: { type: string }
+              rows: { type: integer }
+        entities:
+          type: array
+          description: What the run did, per target entity.
+          items: { $ref: '#/components/schemas/ImportEntityCount' }
+        warnings:
+          type: array
+          description: >-
+            Non-fatal issues, aggregated by kind so that one bad column across
+            800 rows reports once with a count.
+          items: { $ref: '#/components/schemas/ImportIssue' }
+        unmappedFields:
+          type: array
+          description: Source columns SRA-RMS has no home for, listed so the loss is explicit.
+          items: { $ref: '#/components/schemas/ImportUnmappedField' }
+        durationMs: { type: integer }
+    ImportEntityCount:
+      type: object
+      required: [entity, created, updated, skipped]
+      properties:
+        entity:
+          type: string
+          description: Target entity, e.g. "clients", "allocations", "jobTitles".
+        created: { type: integer }
+        updated: { type: integer }
+        skipped:
+          type: integer
+          description: Records that already existed, matched on their natural key.
+    ImportIssue:
+      type: object
+      required: [code, message, count]
+      properties:
+        code:
+          type: string
+          description: Stable issue key, e.g. "resource.managerUnresolved".
+        message: { type: string }
+        count:
+          type: integer
+          description: Source rows or records affected.
+        examples:
+          type: array
+          description: Up to five affected values, to make the issue actionable.
+          items: { type: string }
+    ImportUnmappedField:
+      type: object
+      required: [sheet, field, reason, nonEmptyRows]
+      properties:
+        sheet: { type: string }
+        field: { type: string }
+        reason: { type: string }
+        nonEmptyRows:
+          type: integer
+          description: Source rows where the field carried a value that was not imported.
+

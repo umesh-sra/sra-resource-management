@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { allocationsApi, projectsApi, timeOffApi } from '@/api'
 import { ApiError } from '@/api/http'
-import type { EffortUnit, Project, Resource, TimeOffType } from '@/types'
-import { countWorkingDays, fmtHours, isoDate, timeOffLabel } from '@/lib/format'
+import type { BookingStatus, EffortUnit, Project, Resource, TimeOffType } from '@/types'
+import { bookingStatusLabel, countWorkingDays, fmtHours, isoDate, timeOffLabel } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import ModalDialog from './ModalDialog.vue'
 import AppAvatar from './AppAvatar.vue'
@@ -81,7 +81,11 @@ const booking = ref({
   billable: true,
   details: '',
   bookerId: '',
+  bookingStatus: 'confirmed' as BookingStatus,
 })
+
+/** Ordered firmest-first, matching the reference application's picker. */
+const BOOKING_STATUSES: BookingStatus[] = ['confirmed', 'tentative', 'waiting']
 
 const bookingResource = computed(() => props.resources.find((r) => r.id === booking.value.resourceId))
 /**
@@ -156,6 +160,7 @@ async function addBooking() {
       billable: b.billable,
       details: b.details.trim() || undefined,
       bookerId: b.bookerId || undefined,
+      bookingStatus: b.bookingStatus,
     })
     if (created.warnings?.length) toast.warning(`Booking added — ${created.warnings.join(' ')}`)
     else toast.success('Booking added')
@@ -327,6 +332,20 @@ async function addTimeOff() {
         <span>Billable</span>
       </label>
 
+      <div class="field">
+        <label id="se-status-label">Booking status</label>
+        <div class="segmented" role="group" aria-labelledby="se-status-label">
+          <button
+            v-for="s in BOOKING_STATUSES" :key="s" type="button"
+            :aria-pressed="booking.bookingStatus === s" @click="booking.bookingStatus = s"
+          >{{ bookingStatusLabel(s) }}</button>
+        </div>
+        <p v-if="booking.bookingStatus !== 'confirmed'" class="muted small status-note">
+          Provisional bookings still count toward capacity and over-allocation warnings — they
+          are drawn as pencilled-in on the Schedule, not hidden.
+        </p>
+      </div>
+
       <div class="field" style="margin-top: 14px">
         <label for="se-details">Details (optional)</label>
         <textarea id="se-details" class="input" rows="3" v-model="booking.details" />
@@ -425,4 +444,5 @@ async function addTimeOff() {
 .small { font-size: 12.5px; }
 .err { color: var(--red-700); margin: -6px 0 12px; }
 .warn-text.small { margin: -6px 0 12px; }
+.status-note { margin: 8px 0 0; }
 </style>

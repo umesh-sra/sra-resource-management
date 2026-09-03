@@ -4,7 +4,9 @@ import { useRoute } from 'vue-router'
 import { clientsApi, dashboardApi, projectsApi } from '@/api'
 import { ApiError } from '@/api/http'
 import type { Client, GanttResponse, GanttRow, GanttView, Project } from '@/types'
-import { addDays, isoDate, parseDate, projectStatus, startOfWeek } from '@/lib/format'
+import {
+  addDays, bookingStatusLabel, isUnconfirmed, isoDate, parseDate, projectStatus, startOfWeek,
+} from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import TimelineGrid from '@/components/TimelineGrid.vue'
 
@@ -156,8 +158,16 @@ onMounted(() => { loadReference(); load() })
         </RouterLink>
       </template>
 
-      <template #bar="{ bar }">{{ bar.label }}</template>
+      <template #bar="{ bar }">
+        {{ bar.label }}<template v-if="isUnconfirmed(bar.bookingStatus)">
+          ({{ bookingStatusLabel(bar.bookingStatus!).toLowerCase() }})</template>
+      </template>
     </TimelineGrid>
+
+    <p class="muted legend">
+      Dashed bars are bookings that are not yet firm (FR-ALL-9). They still count toward capacity,
+      so a provisional booking that would over-allocate someone is still shown in red.
+    </p>
   </div>
 </template>
 
@@ -168,4 +178,5 @@ onMounted(() => { loadReference(); load() })
 .lbl:hover .lbl-name { text-decoration: underline; }
 .lbl-name { display: block; font-weight: 600; color: var(--brand-700); font-size: 13px; }
 .lbl-sub { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 12px; margin-top: 3px; }
+.legend { font-size: 12.5px; margin: 12px 0 0; }
 </style>

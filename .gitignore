@@ -23,3 +23,9 @@ web/.vite/
 
 # Reference-app screenshots: contain real staff names/photos and client data.
 screens/
+
+# Resource Guru migration source: real staff names, emails, phone numbers,
+# security clearances and client project data (NFR-SEC-5), ~60 MB of it.
+# The mapping notes are tracked; the exports are not.
+data-migration/*
+!data-migration/README.md

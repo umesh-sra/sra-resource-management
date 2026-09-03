@@ -1,7 +1,7 @@
 # SRA Resource Management System — Software Requirements Specification
 
-**Document version:** 1.1 (Draft)
-**Date:** 2 September 2026
+**Document version:** 1.3 (Draft)
+**Date:** 3 September 2026
 **Status:** Draft for review
 
 > **v1.1** extends the data model (§3) to cover the reference application captured
@@ -9,6 +9,14 @@
 > types, a richer person profile, and hour-based project budgets. New requirement
 > groups: §4.10 FR-PHASE, §4.11 FR-MILE, §4.12 FR-TIMEOFF, plus FR-RES-8/9,
 > FR-PRJ-8/9 and FR-REP-6. Delivered by `db/migrations/V002__reference_app_model.sql`.
+>
+> **v1.2** adds §4.13 FR-IMP: bulk migration of the incumbent Resource Guru
+> data into SRA-RMS. No schema change — the importer writes through the
+> existing model.
+>
+> **v1.3** adds **booking status** to an allocation (§3.4, FR-ALL-9, FR-REP-7),
+> settling open question 10. Delivered by
+> `db/migrations/V004__allocation_booking_status.sql`.
 **Owner:** Umesh Kodippili (umesh.kodippili@sra.com.au)
 
 ---
@@ -190,8 +198,21 @@ Four further entities were added in v1.1: a **Project** also has zero or more **
 | Role on project | text | Optional. |
 | Billable | boolean | Defaults from the project; overridable. |
 | Hourly rate | money | Per-person billable rate for this allocation; defaults from the resource's default rate (v1.1). |
+| Booking status | enum | `confirmed` \| `tentative` \| `waiting`; defaults to `confirmed` (v1.3). Descriptive — see the note below. |
 | Details | text | Optional free text captured by the booking dialog (v1.2). |
 | Booker | relation | Optional; the resource the booking was arranged by (v1.2). Business data, distinct from the created-by audit stamp. Clearing the booker resource sets this to null rather than blocking the delete. |
+
+> **Booking status is descriptive** *(v1.3)*. It records how firm a booking is;
+> it does not gate anything. Every allocation counts toward its resource's load
+> whatever its status, so over-allocation warnings (FR-ALL-6), the dashboard
+> figures and the utilisation ratio are unchanged by this release — and a
+> pencilled-in booking still warns when it would push someone past their
+> availability, which is precisely when you want to know. What the status
+> changes is visibility: the allocations list can be filtered by it (FR-ALL-9),
+> the utilisation report states the unconfirmed share of allocated hours
+> (FR-REP-7), and the Schedule and Gantt draw unconfirmed bookings as
+> provisional. `waiting` is Resource Guru's "waiting for approval"; SRA-RMS has
+> no approval workflow, so the value is carried as data rather than driving one.
 
 ### 3.5 Data integrity rules
 
@@ -201,6 +222,7 @@ Four further entities were added in v1.1: a **Project** also has zero or more **
 - Email addresses and project codes are unique.
 - Total concurrent allocation for a resource should not silently exceed its weekly availability; over-allocation is flagged.
 - *(v1.1)* A phase's date range and a milestone's due date must fall within the owning project's window.
+- *(v1.3)* An allocation's booking status is always set; absent from a request it defaults to `confirmed`.
 - *(v1.1)* A project's budget type and its budget fields must agree: `fee` requires a budget amount, `hours` requires budget hours, `none` requires neither.
 - *(v1.1)* Time-off records for the same resource must not overlap, or leave would be double-counted against capacity.
 - *(v1.1)* A resource may not be its own manager. A manager reference is descriptive, so deleting a manager unlinks their reports rather than being blocked.
@@ -321,6 +343,7 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 | FR-ALL-6 | Detect and warn when an allocation causes a resource to exceed its weekly availability. | Should | Administrator |
 | FR-ALL-7 | Respect a resource's working days when computing effort and over-allocation. | Could | — |
 | FR-ALL-8 | Record a per-person hourly rate on an allocation, defaulting from the resource's default rate. | Could | Administrator |
+| FR-ALL-9 | *(v1.3)* Record how firm a booking is (confirmed / tentative / waiting) and filter the allocations list by it. The status shall be **descriptive**: it must not change over-allocation warnings, dashboard figures or the utilisation ratio, so those stay comparable across releases and a provisional booking still warns when it would exceed availability. | Should | Administrator |
 
 ### 4.6 Dashboard
 
@@ -349,6 +372,7 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 | FR-REP-4 | Generate a billable vs non-billable summary. | Should | Report |
 | FR-REP-5 | Export reports to CSV (and optionally PDF/Excel). | Should | Report |
 | FR-REP-6 | Report time off and effective capacity (availability less time off) alongside utilisation. Utilisation itself remains the ratio of allocated hours to **gross** availability, so the figure is comparable across releases. | Should | Report |
+| FR-REP-7 | *(v1.3)* Report the share of allocated hours that comes from unconfirmed (tentative or waiting) bookings, alongside the total rather than deducted from it — same reasoning as FR-REP-6. | Should | Report |
 
 ### 4.9 Reference data and cross-cutting
 
@@ -387,6 +411,25 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 | FR-TIMEOFF-4 | Reject overlapping time off for the same resource, so capacity is not double-counted. | Should | Administrator |
 | FR-TIMEOFF-5 | Show time off on the Schedule and reduce effective capacity in reporting (FR-REP-6). | Should | Admin, General |
 | FR-TIMEOFF-6 | Time off shall not block allocation; it is surfaced, not enforced. | Should | — |
+
+---
+
+### 4.13 Data import / migration *(v1.2)*
+
+SRA runs its resourcing in Resource Guru today. Its report export (a .zip of
+per-day CSV sheets) is the migration source, so SRA-RMS must be able to load it
+without hand-editing the data. See `data-migration/README.md` for the field-level
+mapping.
+
+| ID | Requirement | Priority | Roles |
+|----|-------------|----------|-------|
+| FR-IMP-1 | Accept a Resource Guru report export — the .zip as downloaded, or a single exported .csv — and resolve its sheets by filename, so the date range in the name does not matter. | Should | Administrator |
+| FR-IMP-2 | Create clients, projects, people, allocations, time off and the reference pick-lists from the export, deriving values the export does not carry (project status, weekly availability, working days) rather than leaving them empty. | Should | Administrator |
+| FR-IMP-3 | Reassemble Resource Guru's one-row-per-day bookings into allocations: consecutive days that agree on person, project, details, booker, billability and hours become one allocation, and per-day hours convert to weekly effort. | Should | Administrator |
+| FR-IMP-4 | Match records that already exist on their natural key (client name, project code, person email, an allocation's project/person/window) and leave them untouched, so an import can be re-run to top up. | Should | Administrator |
+| FR-IMP-5 | Offer a dry run that reports exactly what a committed run would do — same counts, same warnings — without writing anything, and default to it. | Should | Administrator |
+| FR-IMP-6 | Report the outcome: rows read per sheet, created/updated/skipped per entity, aggregated warnings, and the source columns that were deliberately not imported. | Should | Administrator |
+| FR-IMP-7 | An import shall be atomic: either every record lands or none does. | Should | — |
 
 ---
 
@@ -447,7 +490,7 @@ Each requirement has an identifier, a priority (Must / Should / Could), and the 
 
 ## 7. Project artifacts
 
-The following artifacts accompany delivery: this requirements document, the OpenAPI specification for the business layer (`docs/openapi.yaml`), database scripts (schema and migrations — `db/migrations/V001__initial_schema.sql`, `db/migrations/V002__reference_app_model.sql`), a deployment guide, and deployment artifacts.
+The following artifacts accompany delivery: this requirements document, the OpenAPI specification for the business layer (`docs/openapi.yaml`), database scripts (schema and migrations — `db/migrations/V001__initial_schema.sql`, `db/migrations/V002__reference_app_model.sql`, `V003`, `V004`), a deployment guide, deployment artifacts, and the Resource Guru migration mapping (`data-migration/README.md`).
 
 ---
 
@@ -462,7 +505,8 @@ The following artifacts accompany delivery: this requirements document, the Open
 7. *(v1.1)* Should `utilisation` be measured against effective capacity (availability less time off) instead of gross availability? The current definition keeps the ratio comparable with v1.0 and reports both figures (FR-REP-6), but the reference application headlines utilisation against effective capacity.
 8. *(v1.1)* Should the public holiday calendar automatically generate `publicHoliday` time-off records, or is it a display hint only? Currently it is stored but not expanded.
 9. *(v1.1)* Should manager references be validated against deeper cycles (A → B → A)? Only direct self-reference is rejected today.
-10. *(v1.1)* Do phases need to drive allocation (i.e. allocate a person to a phase rather than a project), or do they remain a presentational grouping?
+10. ~~*(v1.2)* Should allocations carry Resource Guru's booking status (confirmed / tentative / waiting)?~~ **Settled in v1.3**: yes, as a descriptive field (§3.4, FR-ALL-9). It deliberately does not alter capacity arithmetic; the unconfirmed share of allocated hours is reported separately (FR-REP-7). Whether reports and the dashboard should *exclude* unconfirmed bookings from committed capacity is a further question, deferred until there is demand — doing so would break comparability with earlier releases.
+11. *(v1.1)* Do phases need to drive allocation (i.e. allocate a person to a phase rather than a project), or do they remain a presentational grouping?
 
 ---
 

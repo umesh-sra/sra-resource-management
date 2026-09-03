@@ -33,7 +33,8 @@ src/
               CollapsibleSection, PagerBar, ToastHost, and the record dialogs
               (PersonFormModal, ProjectFormModal, AllocationEditModal, PersonPanel)
   views/      Dashboard, Schedule, Gantt, People, Work (Projects & Clients),
-              ProjectDetail, ClientDetail, Reports
+              ProjectDetail, ClientDetail, Reports, Import (Resource Guru
+              migration — Analyse for a no-write preview, then Import)
   router/     routes + titles
   styles/     main.css — design tokens + base component classes
 ```

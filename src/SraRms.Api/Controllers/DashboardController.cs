@@ -118,6 +118,7 @@ public class DashboardController(AppDbContext db, BusinessClock clock) : BaseApi
                     Effort = (double)a.Effort,
                     EffortUnit = a.EffortUnit,
                     OverAllocated = false,
+                    BookingStatus = a.BookingStatus,
                 }).ToList())).ToList();
     }
 
@@ -143,6 +144,7 @@ public class DashboardController(AppDbContext db, BusinessClock clock) : BaseApi
                     Effort = (double)a.Effort,
                     EffortUnit = a.EffortUnit,
                     OverAllocated = IsOverAllocatedDuring(r, a),
+                    BookingStatus = a.BookingStatus,
                 }).ToList())).ToList();
     }
 

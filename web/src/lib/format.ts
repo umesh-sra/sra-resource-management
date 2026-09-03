@@ -1,4 +1,4 @@
-import type { MilestoneStatus, ProjectStatus, ResourceStatus, TimeOffType, Weekday } from '@/types'
+import type { BookingStatus, MilestoneStatus, ProjectStatus, ResourceStatus, TimeOffType, Weekday } from '@/types'
 
 export const fmtDate = (iso?: string): string =>
   iso ? new Date(iso).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
@@ -46,6 +46,24 @@ const TIME_OFF_LABELS: Record<TimeOffType, string> = {
   other: 'Other',
 }
 export const timeOffLabel = (t: TimeOffType): string => TIME_OFF_LABELS[t] ?? t
+
+/**
+ * Booking status (V004). `confirmed` deliberately has no badge class: it is the
+ * default and the overwhelming majority, so badging it would add noise to every
+ * row instead of drawing the eye to the bookings that are not yet firm.
+ */
+const BOOKING_STATUS: Record<BookingStatus, { label: string; class: string }> = {
+  confirmed: { label: 'Confirmed', class: 'green' },
+  tentative: { label: 'Tentative', class: 'amber' },
+  waiting: { label: 'Waiting', class: 'blue' },
+}
+export const bookingStatusLabel = (s: BookingStatus): string =>
+  BOOKING_STATUS[s]?.label ?? s
+export const bookingStatusBadge = (s: BookingStatus): string =>
+  BOOKING_STATUS[s]?.class ?? 'gray'
+/** True for a booking that is not yet firm — drawn as provisional. */
+export const isUnconfirmed = (s?: BookingStatus): boolean =>
+  s === 'tentative' || s === 'waiting'
 
 const MILESTONE: Record<MilestoneStatus, { label: string; class: string }> = {
   pending: { label: 'Pending', class: 'gray' },

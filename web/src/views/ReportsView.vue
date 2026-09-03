@@ -92,7 +92,12 @@ const utilTotals = computed(() => {
   const scheduled = rows.reduce((s, r) => s + r.allocatedHours, 0)
   const remaining = rows.reduce((s, r) => s + Math.max(0, r.availableHours - r.allocatedHours), 0)
   const over = rows.filter((r) => r.utilisation > 1).length
-  return { capacity, scheduled, remaining, over, utilisation: capacity ? scheduled / capacity : 0 }
+  // Part of `scheduled`, never subtracted from it (FR-REP-7).
+  const unconfirmed = rows.reduce((s, r) => s + (r.unconfirmedHours ?? 0), 0)
+  return {
+    capacity, scheduled, remaining, over, unconfirmed,
+    utilisation: capacity ? scheduled / capacity : 0,
+  }
 })
 
 /** Busiest people first — a full bar chart of 200 people reads as noise. */
@@ -205,6 +210,11 @@ onMounted(run)
             <div><span class="fig-label">Scheduled, Total</span><span class="fig-value">{{ fmtHours(utilTotals.scheduled) }}</span></div>
             <div><span class="fig-label">Effective Capacity</span><span class="fig-value">{{ fmtHours(utilTotals.capacity) }}</span></div>
             <div><span class="fig-label">Remaining Capacity</span><span class="fig-value">{{ fmtHours(utilTotals.remaining) }}</span></div>
+            <div>
+              <span class="fig-label">Not yet firm</span>
+              <span class="fig-value" :class="{ warn: utilTotals.unconfirmed > 0 }">{{ fmtHours(utilTotals.unconfirmed) }}</span>
+              <span class="fig-hint muted">of the scheduled total</span>
+            </div>
             <div><span class="fig-label">Over-allocated</span><span class="fig-value" :class="{ danger: utilTotals.over > 0 }">{{ utilTotals.over }}</span></div>
           </div>
 
@@ -215,6 +225,7 @@ onMounted(run)
                   <tr>
                     <th scope="col">Person</th><th scope="col">Department</th>
                     <th scope="col" class="num">Capacity (h)</th><th scope="col" class="num">Scheduled (h)</th>
+                    <th scope="col" class="num">Not yet firm (h)</th>
                     <th scope="col" style="width: 230px">Utilisation</th>
                   </tr>
                 </thead>
@@ -224,6 +235,9 @@ onMounted(run)
                     <td>{{ r.department ?? '—' }}</td>
                     <td class="num">{{ r.availableHours.toLocaleString() }}</td>
                     <td class="num">{{ r.allocatedHours.toLocaleString() }}</td>
+                    <td class="num" :class="{ 'warn-text': (r.unconfirmedHours ?? 0) > 0 }">
+                      {{ r.unconfirmedHours ? r.unconfirmedHours.toLocaleString() : '—' }}
+                    </td>
                     <td>
                       <div class="row row-nowrap" style="gap: 10px">
                         <div class="ubar" :class="{ over: r.utilisation > 1 }" style="flex: 1" aria-hidden="true">
@@ -235,7 +249,7 @@ onMounted(run)
                       </div>
                     </td>
                   </tr>
-                  <tr v-if="util && !util.rows.length"><td colspan="5" class="empty">No data for this range.</td></tr>
+                  <tr v-if="util && !util.rows.length"><td colspan="6" class="empty">No data for this range.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -356,6 +370,8 @@ onMounted(run)
 .fig-label { display: block; color: var(--text-muted); font-size: 12px; }
 .fig-value { display: block; font-size: 24px; font-weight: 680; color: var(--brand-800); margin-top: 4px; }
 .fig-value.danger { color: var(--red-600); }
+.fig-value.warn { color: var(--amber-700); }
+.fig-hint { display: block; font-size: 11.5px; margin-top: 3px; }
 .foot { font-size: 12.5px; margin-top: 12px; }
 
 @media (max-width: 900px) {

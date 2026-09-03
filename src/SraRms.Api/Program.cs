@@ -21,6 +21,7 @@ builder.Services.AddDbContext<AppDbContext>(o => o.ConfigureNpgsql(connString));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AllocationService>();
+builder.Services.AddScoped<SraRms.Api.Services.Import.ResourceGuruImporter>();
 
 // Business dates (dashboard horizons, current-allocation windows) resolve in the
 // organisation's time zone, not UTC — see Services/BusinessClock.cs.

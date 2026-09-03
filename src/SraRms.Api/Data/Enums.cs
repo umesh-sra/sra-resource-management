@@ -70,3 +70,18 @@ public enum ProjectBudgetType
     [PgName("fee")] Fee,
     [PgName("hours")] Hours,
 }
+
+// ---- V004: booking status --------------------------------------------------
+
+/// <summary>
+/// How firm a booking is (Requirements §3.4). Descriptive only: it changes no
+/// capacity arithmetic, so a tentative booking still counts toward
+/// over-allocation warnings and the utilisation ratio.
+/// </summary>
+public enum BookingStatus
+{
+    [PgName("confirmed")] Confirmed,
+    [PgName("tentative")] Tentative,
+    /// <summary>Resource Guru's "waiting for approval"; SRA-RMS has no approval workflow.</summary>
+    [PgName("waiting")] Waiting,
+}

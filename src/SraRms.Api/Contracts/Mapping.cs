@@ -101,6 +101,7 @@ public static class Mapping
         Details = a.Details,
         BookerId = a.BookerId,
         BookerName = a.Booker?.Name,
+        BookingStatus = a.BookingStatus,
         Warnings = warnings ?? [],
         CreatedAt = a.CreatedAt,
         UpdatedAt = a.UpdatedAt,

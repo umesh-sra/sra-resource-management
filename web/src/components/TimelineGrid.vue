@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { GanttBar, GanttRow } from '@/types'
-import { addDays, daysBetween, isSameDay, isWeekend, isoDate, isoWeek, parseDate } from '@/lib/format'
+import { addDays, daysBetween, isSameDay, isUnconfirmed, isWeekend, isoDate, isoWeek, parseDate } from '@/lib/format'
 
 /**
  * Horizontal day-grid timeline shared by the Schedule (people) and Gantt
@@ -183,7 +183,11 @@ const layouts = computed(() =>
             ><span v-if="dayWidth >= 16">+</span></span>
             <button
               v-for="(b, i) in l.bars" :key="i" type="button" class="tl-bar"
-              :class="{ over: b.bar.overAllocated, leave: b.bar.kind === 'timeOff' }"
+              :class="{
+                over: b.bar.overAllocated,
+                leave: b.bar.kind === 'timeOff',
+                provisional: isUnconfirmed(b.bar.bookingStatus),
+              }"
               :style="{ left: `${b.left}px`, width: `${b.width}px`, top: `${BAR_GAP + b.lane * (BAR_H + BAR_GAP)}px`, height: `${BAR_H}px` }"
               @click.stop="emit('barClick', b.bar, l.row)"
             >
@@ -257,6 +261,11 @@ const layouts = computed(() =>
   color: var(--gray-700);
 }
 .tl-bar.leave:hover { background: var(--gray-200); }
+/* An unconfirmed booking (tentative / waiting) reads as pencilled in: a dashed
+   edge keeps it legible in the same colour as its confirmed neighbours, so the
+   over-allocation red still shows through rather than being overridden. */
+.tl-bar.provisional { border-style: dashed; border-width: 1.5px; }
+.tl-bar.provisional:not(.over) { background: var(--surface); }
 .tl-bar-text { display: block; overflow: hidden; }
 
 .tl-today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); opacity: .5; pointer-events: none; z-index: 3; }

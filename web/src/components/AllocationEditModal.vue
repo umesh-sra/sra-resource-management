@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { allocationsApi, resourcesApi } from '@/api'
 import { ApiError } from '@/api/http'
-import type { Allocation, EffortUnit, Resource } from '@/types'
+import type { Allocation, BookingStatus, EffortUnit, Resource } from '@/types'
+import { bookingStatusLabel } from '@/lib/format'
 import { useToastStore } from '@/stores/toast'
 import ModalDialog from '@/components/ModalDialog.vue'
 import AppAvatar from '@/components/AppAvatar.vue'
@@ -22,7 +23,10 @@ const form = ref({
   hourlyRate: props.allocation.hourlyRate ?? ('' as number | ''),
   details: props.allocation.details ?? '',
   bookerId: props.allocation.bookerId ?? '',
+  bookingStatus: props.allocation.bookingStatus ?? ('confirmed' as BookingStatus),
 })
+
+const BOOKING_STATUSES: BookingStatus[] = ['confirmed', 'tentative', 'waiting']
 
 /**
  * PUT /allocations/{id} replaces the record, so every field the dialog can hold
@@ -54,6 +58,7 @@ async function save() {
       hourlyRate: f.hourlyRate === '' ? undefined : Number(f.hourlyRate),
       details: f.details.trim() || undefined,
       bookerId: f.bookerId || undefined,
+      bookingStatus: f.bookingStatus,
     })
     // Over-allocation is allowed (FR-ALL-6): the save succeeded, so surface
     // warnings as warnings, not errors.
@@ -92,6 +97,20 @@ async function save() {
       </label>
     </div>
     <div class="field">
+      <label id="ea-status-label">Booking status</label>
+      <div class="segmented" role="group" aria-labelledby="ea-status-label">
+        <button
+          v-for="s in BOOKING_STATUSES" :key="s" type="button"
+          :aria-pressed="form.bookingStatus === s" @click="form.bookingStatus = s"
+        >{{ bookingStatusLabel(s) }}</button>
+      </div>
+      <p v-if="form.bookingStatus !== 'confirmed'" class="muted small status-note">
+        Provisional bookings still count toward capacity and over-allocation warnings — they
+        are drawn as pencilled-in on the Schedule, not hidden.
+      </p>
+    </div>
+
+    <div class="field">
       <label for="ea-details">Details (optional)</label>
       <textarea id="ea-details" class="input" rows="3" v-model="form.details" />
     </div>
@@ -116,4 +135,6 @@ async function save() {
 <style scoped>
 .picker { display: flex; align-items: center; gap: 10px; }
 .picker .select { flex: 1; min-width: 0; }
+.small { font-size: 12.5px; }
+.status-note { margin: 8px 0 0; }
 </style>

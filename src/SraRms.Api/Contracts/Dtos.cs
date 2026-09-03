@@ -307,6 +307,8 @@ public class AllocationCreate
     public string? Details { get; set; }
     /// <summary>V003 - resource the booking was arranged by; must exist.</summary>
     public Guid? BookerId { get; set; }
+    /// <summary>V004 - how firm the booking is; defaults to confirmed.</summary>
+    public BookingStatus BookingStatus { get; set; } = BookingStatus.Confirmed;
 }
 
 public class AllocationCreateFull : AllocationCreate
@@ -328,6 +330,8 @@ public class AllocationUpdate
     public string? Details { get; set; }
     /// <summary>V003 - resource the booking was arranged by; must exist.</summary>
     public Guid? BookerId { get; set; }
+    /// <summary>V004 - how firm the booking is; defaults to confirmed.</summary>
+    public BookingStatus BookingStatus { get; set; } = BookingStatus.Confirmed;
 }
 
 public record AllocationDto
@@ -348,6 +352,8 @@ public record AllocationDto
     public Guid? BookerId { get; init; }
     /// <summary>Resolved from the booker resource; null when no booker is set.</summary>
     public string? BookerName { get; init; }
+    /// <summary>V004 - how firm the booking is.</summary>
+    public BookingStatus BookingStatus { get; init; }
     public IReadOnlyList<string> Warnings { get; init; } = [];
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
@@ -398,6 +404,8 @@ public record GanttBarDto
     /// <summary>Unit for <see cref="Effort"/>, so a bar can be labelled without a second lookup.</summary>
     public EffortUnit? EffortUnit { get; init; }
     public bool? OverAllocated { get; init; }
+    /// <summary>V004 - so an unconfirmed booking can be drawn as provisional.</summary>
+    public BookingStatus? BookingStatus { get; init; }
 }
 
 // ----------------------------------------------------------------------------
@@ -412,9 +420,15 @@ public record UtilisationReportDto(DateOnly From, DateOnly To, IReadOnlyList<Uti
 /// availability so the figure is unchanged by V002; the reference app reports
 /// effective capacity alongside it rather than folding leave into the ratio.
 /// </param>
+/// <param name="UnconfirmedHours">
+/// V004 — the part of AllocatedHours that comes from tentative or waiting
+/// bookings. Reported alongside rather than deducted, for the same reason as
+/// TimeOffHours: Utilisation stays comparable across releases, and the caller
+/// can see how much of the load is not yet firm (FR-REP-7).
+/// </param>
 public record UtilisationRow(Guid ResourceId, string ResourceName, string? Department,
     double AvailableHours, double AllocatedHours, double Utilisation,
-    double TimeOffHours = 0, double EffectiveCapacityHours = 0);
+    double TimeOffHours = 0, double EffectiveCapacityHours = 0, double UnconfirmedHours = 0);
 
 public record AllocationReportDto(DateOnly From, DateOnly To, IReadOnlyList<AllocationReportRow> Rows);
 public record AllocationReportRow(Guid ProjectId, string ProjectName, string? ClientName,

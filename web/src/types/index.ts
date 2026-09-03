@@ -7,6 +7,8 @@ export type BookableStatus = 'bookable' | 'nonBookable'
 export type TimeOffType = 'annualLeave' | 'personal' | 'sick' | 'publicHoliday' | 'other'
 export type MilestoneStatus = 'pending' | 'met' | 'missed'
 export type ProjectBudgetType = 'none' | 'fee' | 'hours'
+/** V004 — how firm a booking is. Descriptive: it changes no capacity maths. */
+export type BookingStatus = 'confirmed' | 'tentative' | 'waiting'
 export type Weekday =
   | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
 
@@ -174,6 +176,8 @@ export interface Allocation {
   bookerId?: string
   /** Resolved server-side from `bookerId`; read-only. */
   bookerName?: string
+  /** V004 — how firm the booking is; the API defaults it to `confirmed`. */
+  bookingStatus: BookingStatus
   warnings: string[]
   createdAt: string
   updatedAt: string
@@ -209,6 +213,8 @@ export interface GanttBar {
   effort?: number
   effortUnit?: EffortUnit
   overAllocated?: boolean
+  /** V004 — lets the timeline draw an unconfirmed booking as provisional. */
+  bookingStatus?: BookingStatus
   /**
    * Client-side annotation, not part of the API response: the Schedule merges
    * time-off records in as bars so leave sits on the same row as allocations.
@@ -245,6 +251,12 @@ export interface UtilisationRow {
   timeOffHours: number
   /** V002 — availableHours minus timeOffHours (FR-REP-6). */
   effectiveCapacityHours: number
+  /**
+   * V004 — the part of allocatedHours from tentative or waiting bookings
+   * (FR-REP-7). Reported alongside, never deducted, so `utilisation` stays
+   * comparable across releases.
+   */
+  unconfirmedHours: number
 }
 
 export interface UtilisationReport {
@@ -257,6 +269,49 @@ export interface ReferenceItem {
   id: string
   value: string
   active: boolean
+}
+
+// ---- Data import (FR-IMP-*) ----
+
+export interface ImportSourceCount {
+  sheet: string
+  rows: number
+}
+
+export interface ImportEntityCount {
+  entity: string
+  created: number
+  updated: number
+  /** Records that already existed, matched on their natural key. */
+  skipped: number
+}
+
+export interface ImportIssue {
+  /** Stable key, e.g. "resource.managerUnresolved". */
+  code: string
+  message: string
+  /** Source rows or records affected. */
+  count: number
+  examples: string[]
+}
+
+export interface ImportUnmappedField {
+  sheet: string
+  field: string
+  reason: string
+  nonEmptyRows: number
+}
+
+export interface ImportReport {
+  /** True when the run was rolled back and nothing was written. */
+  dryRun: boolean
+  sourceFiles: string[]
+  sheetsRead: string[]
+  sourceRows: ImportSourceCount[]
+  entities: ImportEntityCount[]
+  warnings: ImportIssue[]
+  unmappedFields: ImportUnmappedField[]
+  durationMs: number
 }
 
 /** RFC 9457 problem details returned by the API on errors. */

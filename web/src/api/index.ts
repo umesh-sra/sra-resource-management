@@ -1,8 +1,8 @@
 import { http } from './http'
 import type {
-  Allocation, Client, ClientDetail, DashboardSummary, GanttResponse, GanttView, Page,
-  Project, ProjectDetail, ProjectMilestone, ProjectPhase, ReferenceItem, Resource,
-  ResourceDetail, TimeOff, TimeOffType, UtilisationReport,
+  Allocation, BookingStatus, Client, ClientDetail, DashboardSummary, GanttResponse, GanttView,
+  Page, ImportReport, Project, ProjectDetail, ProjectMilestone, ProjectPhase, ReferenceItem,
+  Resource, ResourceDetail, TimeOff, TimeOffType, UtilisationReport,
 } from '@/types'
 
 // ---- Clients ----
@@ -93,8 +93,12 @@ export const resourcesApi = {
 
 // ---- Allocations ----
 export const allocationsApi = {
-  list: (params: { projectId?: string; resourceId?: string; from?: string; to?: string; page?: number; pageSize?: number } = {}) =>
-    http.get<Page<Allocation>>('/allocations', { params }).then((r) => r.data),
+  list: (
+    params: {
+      projectId?: string; resourceId?: string; from?: string; to?: string
+      bookingStatus?: BookingStatus; page?: number; pageSize?: number
+    } = {},
+  ) => http.get<Page<Allocation>>('/allocations', { params }).then((r) => r.data),
   create: (body: Partial<Allocation>) => http.post<Allocation>('/allocations', body).then((r) => r.data),
   update: (id: string, body: Partial<Allocation>) =>
     http.put<Allocation>(`/allocations/${id}`, body).then((r) => r.data),
@@ -123,4 +127,31 @@ export const referenceApi = {
     http.get<ReferenceItem[]>(`/reference/${collection}`).then((r) => r.data),
   create: (collection: string, value: string) =>
     http.post<ReferenceItem>(`/reference/${collection}`, { value }).then((r) => r.data),
+}
+
+// ---- Data import (FR-IMP-*) ----
+export const importApi = {
+  /**
+   * Uploads a Resource Guru export. `dryRun` runs the whole import inside a
+   * transaction that is rolled back, so a preview and the commit that follows it
+   * report the same counts. The same File is posted twice — once to preview,
+   * once to commit — rather than staging it server-side.
+   */
+  resourceGuru: (file: File, dryRun: boolean, onProgress?: (percent: number) => void) => {
+    const body = new FormData()
+    body.append('file', file, file.name)
+    return http
+      .post<ImportReport>('/import/resource-guru', body, {
+        params: { dryRun },
+        // Let the browser set multipart/form-data with its own boundary.
+        headers: { 'Content-Type': undefined },
+        // A 17 MB export takes a while to parse and insert; the default has no
+        // timeout, but be explicit so a hung request cannot wedge the screen.
+        timeout: 10 * 60 * 1000,
+        onUploadProgress: (e) => {
+          if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+        },
+      })
+      .then((r) => r.data)
+  },
 }
