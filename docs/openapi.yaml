@@ -1514,6 +1514,22 @@ components:
         effortUnit: { $ref: '#/components/schemas/EffortUnit' }
         roleOnProject: { type: string }
         billable: { type: boolean }
+        hourlyRate:
+          type: number
+          format: double
+          minimum: 0
+          description: Per-person billable rate for this booking.
+        details:
+          type: string
+          description: Free text captured by the booking dialog's Details box.
+        bookerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Resource the booking was arranged by. Business data chosen in the
+            dialog, distinct from the created-by audit stamp; must reference an
+            existing resource. Null clears it.
     AllocationCreate:
       description: Used when the project is known from the path.
       allOf:
@@ -1547,6 +1563,10 @@ components:
             projectName: { type: string }
             resourceId: { type: string, format: uuid }
             resourceName: { type: string }
+            bookerName:
+              type: string
+              nullable: true
+              description: Read-only; resolved from bookerId.
             warnings:
               type: array
               description: Non-blocking validation warnings, e.g. over-allocation.
@@ -1633,7 +1653,16 @@ components:
           minimum: 0.01
           maximum: 24
           description: Omit for a full working day; set for partial-day leave.
-        note: { type: string }
+        note:
+          type: string
+          description: Free text; surfaced as "Details" on the time-off dialog.
+        bookerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Resource the leave was arranged by. Must reference an existing
+            resource; null clears it.
     TimeOffCreate:
       allOf:
         - $ref: '#/components/schemas/TimeOffBase'
@@ -1655,6 +1684,10 @@ components:
             id: { type: string, format: uuid }
             resourceId: { type: string, format: uuid }
             resourceName: { type: string }
+            bookerName:
+              type: string
+              nullable: true
+              description: Read-only; resolved from bookerId.
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
     TimeOffPage:

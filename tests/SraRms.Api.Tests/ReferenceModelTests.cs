@@ -170,6 +170,47 @@ public class ReferenceModelTests(ApiFixture fx) : IntegrationTestBase(fx)
     }
 
     [Fact]
+    public async Task Time_off_round_trips_details_and_booker()
+    {
+        var resource = await CreateResource("leave@sra.com.au", 38);
+        var booker = await CreateResource("booker@sra.com.au", 38);
+
+        var res = await PostJson("/v1/timeoff", new
+        {
+            resourceId = resource.Id,
+            startDate = new DateOnly(2026, 3, 2),
+            endDate = new DateOnly(2026, 3, 6),
+            type = "sick",
+            note = "Called in Monday morning.",
+            bookerId = booker.Id,
+        });
+        res.EnsureSuccessStatusCode();
+        var created = await ReadAs<TimeOffDto>(res);
+
+        Assert.Equal("Called in Monday morning.", created.Note);
+        Assert.Equal(booker.Id, created.BookerId);
+        Assert.Equal("booker", created.BookerName);
+
+        var fetched = await ReadAs<TimeOffDto>(await Client.GetAsync($"/v1/timeoff/{created.Id}"));
+        Assert.Equal(booker.Id, fetched.BookerId);
+        Assert.Equal("booker", fetched.BookerName);
+    }
+
+    [Fact]
+    public async Task Time_off_with_unknown_booker_is_rejected()
+    {
+        var resource = await CreateResource("leave@sra.com.au", 38);
+        var res = await PostJson("/v1/timeoff", new
+        {
+            resourceId = resource.Id,
+            startDate = new DateOnly(2026, 3, 2),
+            endDate = new DateOnly(2026, 3, 6),
+            bookerId = Guid.NewGuid(),
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Overlapping_time_off_for_same_resource_returns_409()
     {
         var resource = await CreateResource("leave@sra.com.au", 38);

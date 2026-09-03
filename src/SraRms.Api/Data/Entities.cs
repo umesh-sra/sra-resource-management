@@ -99,6 +99,14 @@ public class Allocation : AuditableEntity
     public bool Billable { get; set; } = true;
     /// <summary>V002 — per-person billable rate, set on the project's Team tab.</summary>
     public decimal? HourlyRate { get; set; }
+    /// <summary>V003 — free-text Details on the booking dialog.</summary>
+    public string? Details { get; set; }
+    /// <summary>
+    /// V003 — the person the booking was arranged by. Business data chosen in
+    /// the dialog, distinct from the <c>CreatedBy</c> audit stamp.
+    /// </summary>
+    public Guid? BookerId { get; set; }
+    public Resource? Booker { get; set; }
 }
 
 // ---- V002: reference-application model -------------------------------------
@@ -139,7 +147,11 @@ public class TimeOff : AuditableEntity
     public TimeOffType Type { get; set; } = TimeOffType.AnnualLeave;
     /// <summary>Null means the whole working day is unavailable.</summary>
     public decimal? HoursPerDay { get; set; }
+    /// <summary>Surfaced as "Details" on the time-off dialog.</summary>
     public string? Note { get; set; }
+    /// <summary>V003 — see <see cref="Allocation.BookerId"/>.</summary>
+    public Guid? BookerId { get; set; }
+    public Resource? Booker { get; set; }
 }
 
 // Backs department / location / job_title / skill / activity_type reference tables. Discriminated

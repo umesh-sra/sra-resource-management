@@ -97,8 +97,9 @@ public class ResourcesController(AppDbContext db, IWebHostEnvironment env, Busin
         // NB: do not Include Allocations->Resource — it cycles back to this resource.
         var resource = await db.Resources.AsNoTracking()
             .Include(r => r.Allocations).ThenInclude(a => a.Project)
+            .Include(r => r.Allocations).ThenInclude(a => a.Booker)
             .Include(r => r.Manager)
-            .Include(r => r.TimeOff)
+            .Include(r => r.TimeOff).ThenInclude(t => t.Booker)
             .FirstOrDefaultAsync(r => r.Id == resourceId, ct);
         if (resource is null) return NotFoundProblem($"Resource {resourceId} not found.");
 

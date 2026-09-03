@@ -456,7 +456,7 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
         pageSize = pageSize is < 1 or > 200 ? 25 : pageSize;
 
         var q = db.Allocations.AsNoTracking()
-            .Include(a => a.Project).Include(a => a.Resource)
+            .Include(a => a.Project).Include(a => a.Resource).Include(a => a.Booker)
             .Where(a => a.ProjectId == projectId);
         var total = await q.CountAsync(ct);
         var items = await q.OrderBy(a => a.StartDate).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
@@ -474,6 +474,8 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             return NotFoundProblem($"Project {projectId} not found.");
         if (!await db.Resources.AnyAsync(r => r.Id == body.ResourceId, ct))
             return BadRequestProblem($"Resource {body.ResourceId} does not exist.");
+        if (body.BookerId is { } bookerId && !await db.Resources.AnyAsync(r => r.Id == bookerId, ct))
+            return BadRequestProblem($"Booker {bookerId} does not exist.");
 
         var windowError = await allocations.ValidateWindowAsync(projectId, body.StartDate, body.EndDate, ct);
         if (windowError is not null) return BadRequestProblem(windowError);
@@ -490,6 +492,9 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
             EffortUnit = body.EffortUnit,
             RoleOnProject = body.RoleOnProject,
             Billable = billable,
+            HourlyRate = body.HourlyRate,
+            Details = body.Details,
+            BookerId = body.BookerId,
         };
         db.Allocations.Add(allocation);
         await db.SaveChangesAsync(ct);
@@ -499,6 +504,7 @@ public class ProjectsController(AppDbContext db, AllocationService allocations) 
 
         await db.Entry(allocation).Reference(a => a.Project).LoadAsync(ct);
         await db.Entry(allocation).Reference(a => a.Resource).LoadAsync(ct);
+        await db.Entry(allocation).Reference(a => a.Booker).LoadAsync(ct);
         return Created($"/v1/allocations/{allocation.Id}", allocation.ToDto(warnings));
     }
 }

@@ -254,7 +254,10 @@ public class TimeOffCreate
     [Required] public DateOnly EndDate { get; set; }
     public TimeOffType Type { get; set; } = TimeOffType.AnnualLeave;
     [Range(0.01, 24)] public decimal? HoursPerDay { get; set; }
+    /// <summary>Surfaced as "Details" on the time-off dialog.</summary>
     public string? Note { get; set; }
+    /// <summary>V003 - resource the leave was arranged by; must exist.</summary>
+    public Guid? BookerId { get; set; }
 }
 
 public class TimeOffUpdate
@@ -263,7 +266,10 @@ public class TimeOffUpdate
     [Required] public DateOnly EndDate { get; set; }
     public TimeOffType Type { get; set; } = TimeOffType.AnnualLeave;
     [Range(0.01, 24)] public decimal? HoursPerDay { get; set; }
+    /// <summary>Surfaced as "Details" on the time-off dialog.</summary>
     public string? Note { get; set; }
+    /// <summary>V003 - resource the leave was arranged by; must exist.</summary>
+    public Guid? BookerId { get; set; }
 }
 
 public record TimeOffDto
@@ -276,6 +282,9 @@ public record TimeOffDto
     public TimeOffType Type { get; init; }
     public decimal? HoursPerDay { get; init; }
     public string? Note { get; init; }
+    public Guid? BookerId { get; init; }
+    /// <summary>Resolved from the booker resource; null when no booker is set.</summary>
+    public string? BookerName { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
 }
@@ -294,6 +303,10 @@ public class AllocationCreate
     public bool? Billable { get; set; }
     /// <summary>V002 - per-person billable rate (project Team tab).</summary>
     [Range(0, double.MaxValue)] public decimal? HourlyRate { get; set; }
+    /// <summary>V003 - free-text Details on the booking dialog.</summary>
+    public string? Details { get; set; }
+    /// <summary>V003 - resource the booking was arranged by; must exist.</summary>
+    public Guid? BookerId { get; set; }
 }
 
 public class AllocationCreateFull : AllocationCreate
@@ -311,6 +324,10 @@ public class AllocationUpdate
     public bool? Billable { get; set; }
     /// <summary>V002 - per-person billable rate (project Team tab).</summary>
     [Range(0, double.MaxValue)] public decimal? HourlyRate { get; set; }
+    /// <summary>V003 - free-text Details on the booking dialog.</summary>
+    public string? Details { get; set; }
+    /// <summary>V003 - resource the booking was arranged by; must exist.</summary>
+    public Guid? BookerId { get; set; }
 }
 
 public record AllocationDto
@@ -327,6 +344,10 @@ public record AllocationDto
     public string? RoleOnProject { get; init; }
     public bool Billable { get; init; }
     public decimal? HourlyRate { get; init; }
+    public string? Details { get; init; }
+    public Guid? BookerId { get; init; }
+    /// <summary>Resolved from the booker resource; null when no booker is set.</summary>
+    public string? BookerName { get; init; }
     public IReadOnlyList<string> Warnings { get; init; } = [];
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }

@@ -72,6 +72,11 @@ public class AppDbContext : DbContext
             e.ToTable("allocation");
             e.Property(a => a.Effort).HasPrecision(7, 2);
             e.Property(a => a.HourlyRate).HasPrecision(10, 2);
+            // Second FK to resource, with no inverse navigation so it does not
+            // collide with Resource.Allocations. SET NULL matches V003: being
+            // named as a booker must not block deleting a person.
+            e.HasOne(a => a.Booker).WithMany()
+                .HasForeignKey(a => a.BookerId).OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<ProjectPhase>(e => e.ToTable("project_phase"));
@@ -80,6 +85,8 @@ public class AppDbContext : DbContext
         {
             e.ToTable("time_off");
             e.Property(t => t.HoursPerDay).HasPrecision(4, 2);
+            e.HasOne(t => t.Booker).WithMany()
+                .HasForeignKey(t => t.BookerId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // Shared-type reference entities -> one table each.

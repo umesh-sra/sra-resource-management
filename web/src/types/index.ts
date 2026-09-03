@@ -144,7 +144,12 @@ export interface TimeOff {
   type: TimeOffType
   /** Omitted means the whole working day. */
   hoursPerDay?: number
+  /** Surfaced as "Details" on the time-off dialog. */
   note?: string
+  /** V003 — the person the leave was arranged by. */
+  bookerId?: string
+  /** Resolved server-side from `bookerId`; read-only. */
+  bookerName?: string
   createdAt: string
   updatedAt: string
 }
@@ -163,6 +168,12 @@ export interface Allocation {
   billable: boolean
   /** V002 — per-person billable rate (project Team tab). */
   hourlyRate?: number
+  /** V003 — free text from the booking dialog's Details box. */
+  details?: string
+  /** V003 — the person the booking was arranged by. */
+  bookerId?: string
+  /** Resolved server-side from `bookerId`; read-only. */
+  bookerName?: string
   warnings: string[]
   createdAt: string
   updatedAt: string

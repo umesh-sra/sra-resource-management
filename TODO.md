@@ -24,9 +24,10 @@ See `docs/Requirements.md` for the full spec and `docs/openapi.yaml` for the API
 - [ ] **Public holiday calendar is stored but not expanded** — `publicHolidayCalendar` holds a region key; nothing generates `publicHoliday` time-off rows from it (§8 #8).
 - [ ] **Manager cycles** — only direct self-reference is rejected; A → B → A is possible. A full ancestry check needs a recursive query on every write (§8 #9).
 - [ ] **Time off can be created but not edited from the UI.** Picking a day on the Schedule opens `ScheduleEntryModal` (Booking / Time Off), so leave can now be added; editing and deleting an existing leave record still has no dialog — clicking a hatched bar is a no-op.
-- [ ] **Allocation hourly rate is not in the allocation dialogs.** The column, DTO and contract exist; the project Team tab and `AllocationEditModal` do not expose it yet.
+- [ ] **Allocation hourly rate is only in `AllocationEditModal`.** The controllers were silently discarding `hourlyRate` on create and update and the contract omitted it entirely; both are fixed in V003's change set, and the allocation edit dialog now exposes the field. The project Team tab still does not.
 - [ ] **Phases do not drive allocation** — they are presentational only (§8 #10).
-- [ ] **Reference booking fields with no home in the model.** `screens/shedule_booking.png` carries *Activity Type*, *Tentative*, *Add Repeat* and *Specific Time*; `screens/shedule_timeoff.png` carries *Booker*. `Project.activityTypes` exists, but an allocation has no activity-type column, so the booking dialog omits all five rather than discarding input. Adding any of them is a contract change to `Allocation` / `TimeOff` in `docs/openapi.yaml`.
+- [ ] **Reference booking fields still not modelled.** *Details* and *Booker* landed in V003; `screens/shedule_booking.png` also carries *Activity Type*, *Tentative*, *Add Repeat* and *Specific Time*. `Project.activityTypes` exists but an allocation has no activity-type column, so the booking dialog omits these four rather than discarding input. Adding any of them is a contract change to `Allocation` in `docs/openapi.yaml`.
+- [ ] **Booker cannot default to the signed-in user.** The reference preselects the current user; nothing maps the authenticated AD identity onto a `resource` row (the SPA's user chip is hard-coded "Dev User"), so both dialogs default to "No booker recorded". Needs a `/me` endpoint resolving the principal to a resource, which depends on the AD group/identity mapping in §8.
 
 ## Next up — additional test slices
 

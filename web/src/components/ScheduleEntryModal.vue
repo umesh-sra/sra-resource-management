@@ -79,9 +79,17 @@ const booking = ref({
   endDate: day,
   roleOnProject: '',
   billable: true,
+  details: '',
+  bookerId: '',
 })
 
 const bookingResource = computed(() => props.resources.find((r) => r.id === booking.value.resourceId))
+/**
+ * The Booker defaults to blank rather than the signed-in user: nothing maps the
+ * authenticated AD identity onto a Resource row yet, so there is no reliable
+ * "me" to preselect. See TODO.md.
+ */
+const bookingBooker = computed(() => props.resources.find((r) => r.id === booking.value.bookerId))
 const bookingProject = computed(() => projectById.value.get(booking.value.projectId))
 
 /** Days a week this person actually works — 5 unless their pattern says otherwise. */
@@ -146,6 +154,8 @@ async function addBooking() {
       effortUnit: effort.value.unit,
       roleOnProject: b.roleOnProject.trim() || undefined,
       billable: b.billable,
+      details: b.details.trim() || undefined,
+      bookerId: b.bookerId || undefined,
     })
     if (created.warnings?.length) toast.warning(`Booking added — ${created.warnings.join(' ')}`)
     else toast.success('Booking added')
@@ -171,9 +181,11 @@ const leave = ref({
   /** Empty means a whole working day, which is what the API assumes. */
   hoursPerDay: '' as number | '',
   note: '',
+  bookerId: '',
 })
 
 const leaveResource = computed(() => props.resources.find((r) => r.id === leave.value.resourceId))
+const leaveBooker = computed(() => props.resources.find((r) => r.id === leave.value.bookerId))
 
 const leaveTotal = computed(() => {
   const l = leave.value
@@ -200,6 +212,7 @@ async function addTimeOff() {
       type: l.type,
       hoursPerDay: l.hoursPerDay === '' ? undefined : Number(l.hoursPerDay),
       note: l.note.trim() || undefined,
+      bookerId: l.bookerId || undefined,
     })
     toast.success('Time off added')
     emit('saved')
@@ -313,6 +326,22 @@ async function addTimeOff() {
         <input type="checkbox" v-model="booking.billable" /><span class="track" />
         <span>Billable</span>
       </label>
+
+      <div class="field" style="margin-top: 14px">
+        <label for="se-details">Details (optional)</label>
+        <textarea id="se-details" class="input" rows="3" v-model="booking.details" />
+      </div>
+
+      <div class="field">
+        <label for="se-booker">Booker (optional)</label>
+        <div class="picker">
+          <AppAvatar v-if="bookingBooker" :name="bookingBooker.name" :image-url="bookingBooker.imageUrl" :size="30" />
+          <select id="se-booker" class="select" v-model="booking.bookerId">
+            <option value="">No booker recorded</option>
+            <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <!-- Time off ---------------------------------------------------------- -->
@@ -354,6 +383,17 @@ async function addTimeOff() {
       <div class="field">
         <label for="se-lnote">Details (optional)</label>
         <textarea id="se-lnote" class="input" rows="3" v-model="leave.note" />
+      </div>
+
+      <div class="field">
+        <label for="se-lbooker">Booker (optional)</label>
+        <div class="picker">
+          <AppAvatar v-if="leaveBooker" :name="leaveBooker.name" :image-url="leaveBooker.imageUrl" :size="30" />
+          <select id="se-lbooker" class="select" v-model="leave.bookerId">
+            <option value="">No booker recorded</option>
+            <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
+          </select>
+        </div>
       </div>
 
       <p class="muted small">

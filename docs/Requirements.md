@@ -190,6 +190,8 @@ Four further entities were added in v1.1: a **Project** also has zero or more **
 | Role on project | text | Optional. |
 | Billable | boolean | Defaults from the project; overridable. |
 | Hourly rate | money | Per-person billable rate for this allocation; defaults from the resource's default rate (v1.1). |
+| Details | text | Optional free text captured by the booking dialog (v1.2). |
+| Booker | relation | Optional; the resource the booking was arranged by (v1.2). Business data, distinct from the created-by audit stamp. Clearing the booker resource sets this to null rather than blocking the delete. |
 
 ### 3.5 Data integrity rules
 
@@ -244,7 +246,8 @@ Recorded leave for one resource over a date range.
 | End date | date | Required; on or after start date. |
 | Type | enum | `annualLeave`, `personal`, `sick`, `publicHoliday`, `other`. |
 | Hours per day | number | Optional; omitted means the whole working day. |
-| Note | text | Free text. |
+| Note | text | Free text; shown as "Details" on the time-off dialog. |
+| Booker | relation | Optional; the resource the leave was arranged by (v1.2). See §3.4. |
 
 Time off does **not** block allocation — consistent with over-allocation being a
 warning rather than an error (FR-ALL-6) — but it reduces effective capacity in

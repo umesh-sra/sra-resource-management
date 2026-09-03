@@ -33,9 +33,10 @@ Applied versions are recorded in the `schema_migration` table.
   table (NFR-AUD-1). The API sets `*_by`; `updated_at` is maintained by a trigger.
   A full before/after audit *history* table is deliberately **not** included yet —
   see open question #6 in `docs/Requirements.md`.
-- **Referential integrity**: foreign keys are `ON DELETE RESTRICT`, with one
-  deliberate exception — `resource.manager_id` is `ON DELETE SET NULL`, because a
-  manager reference is descriptive and should not block deleting that person. The
+- **Referential integrity**: foreign keys are `ON DELETE RESTRICT`, with three
+  deliberate exceptions — `resource.manager_id`, `allocation.booker_id` and
+  `time_off.booker_id` are `ON DELETE SET NULL`, because naming someone as a
+  manager or a booker is descriptive and should not block deleting that person. The
   `?cascade=true` behaviour (FR-DEL) is implemented in the application by deleting
   dependents first, not by DB-level cascade.
 - **Reference data** (`department`, `location`, `job_title`, `skill`, `activity_type`) are

@@ -27,7 +27,7 @@ public class TimeOffController(AppDbContext db) : BaseApiController
         [FromQuery] TimeOffType? type,
         CancellationToken ct)
     {
-        var q = db.TimeOff.AsNoTracking().Include(t => t.Resource).AsQueryable();
+        var q = db.TimeOff.AsNoTracking().Include(t => t.Resource).Include(t => t.Booker).AsQueryable();
 
         if (resourceId is not null) q = q.Where(t => t.ResourceId == resourceId);
         if (type is not null) q = q.Where(t => t.Type == type);
@@ -50,7 +50,7 @@ public class TimeOffController(AppDbContext db) : BaseApiController
     [Authorize(Policy = Policies.Read)]
     public async Task<ActionResult<TimeOffDto>> Get(Guid timeOffId, CancellationToken ct)
     {
-        var row = await db.TimeOff.AsNoTracking().Include(t => t.Resource)
+        var row = await db.TimeOff.AsNoTracking().Include(t => t.Resource).Include(t => t.Booker)
             .FirstOrDefaultAsync(t => t.Id == timeOffId, ct);
         return row is null ? NotFoundProblem($"Time off {timeOffId} not found.") : Ok(row.ToDto());
     }
@@ -64,6 +64,8 @@ public class TimeOffController(AppDbContext db) : BaseApiController
             return BadRequestProblem("End date must be on or after start date.");
         if (!await db.Resources.AnyAsync(r => r.Id == body.ResourceId, ct))
             return BadRequestProblem($"Resource {body.ResourceId} does not exist.");
+        if (body.BookerId is { } bookerId && !await db.Resources.AnyAsync(r => r.Id == bookerId, ct))
+            return BadRequestProblem($"Booker {bookerId} does not exist.");
         if (await OverlapProblem(body.ResourceId, body.StartDate, body.EndDate, null, ct) is { } overlap)
             return ConflictProblem(overlap);
 
@@ -75,11 +77,13 @@ public class TimeOffController(AppDbContext db) : BaseApiController
             Type = body.Type,
             HoursPerDay = body.HoursPerDay,
             Note = body.Note,
+            BookerId = body.BookerId,
         };
         db.TimeOff.Add(row);
         await db.SaveChangesAsync(ct);
 
         await db.Entry(row).Reference(t => t.Resource).LoadAsync(ct);
+        await db.Entry(row).Reference(t => t.Booker).LoadAsync(ct);
         return Created($"/v1/timeoff/{row.Id}", row.ToDto());
     }
 
@@ -89,10 +93,13 @@ public class TimeOffController(AppDbContext db) : BaseApiController
     public async Task<ActionResult<TimeOffDto>> Update(
         Guid timeOffId, [FromBody] TimeOffUpdate body, CancellationToken ct)
     {
-        var row = await db.TimeOff.Include(t => t.Resource).FirstOrDefaultAsync(t => t.Id == timeOffId, ct);
+        var row = await db.TimeOff.Include(t => t.Resource).Include(t => t.Booker)
+            .FirstOrDefaultAsync(t => t.Id == timeOffId, ct);
         if (row is null) return NotFoundProblem($"Time off {timeOffId} not found.");
         if (body.EndDate < body.StartDate)
             return BadRequestProblem("End date must be on or after start date.");
+        if (body.BookerId is { } bookerId && !await db.Resources.AnyAsync(r => r.Id == bookerId, ct))
+            return BadRequestProblem($"Booker {bookerId} does not exist.");
         if (await OverlapProblem(row.ResourceId, body.StartDate, body.EndDate, timeOffId, ct) is { } overlap)
             return ConflictProblem(overlap);
 
@@ -101,7 +108,10 @@ public class TimeOffController(AppDbContext db) : BaseApiController
         row.Type = body.Type;
         row.HoursPerDay = body.HoursPerDay;
         row.Note = body.Note;
+        row.BookerId = body.BookerId;
         await db.SaveChangesAsync(ct);
+        // The booker may have changed; reload it so BookerName reflects the write.
+        await db.Entry(row).Reference(t => t.Booker).LoadAsync(ct);
         return Ok(row.ToDto());
     }
 

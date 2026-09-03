@@ -98,6 +98,9 @@ public static class Mapping
         RoleOnProject = a.RoleOnProject,
         Billable = a.Billable,
         HourlyRate = a.HourlyRate,
+        Details = a.Details,
+        BookerId = a.BookerId,
+        BookerName = a.Booker?.Name,
         Warnings = warnings ?? [],
         CreatedAt = a.CreatedAt,
         UpdatedAt = a.UpdatedAt,
@@ -140,6 +143,8 @@ public static class Mapping
         Type = t.Type,
         HoursPerDay = t.HoursPerDay,
         Note = t.Note,
+        BookerId = t.BookerId,
+        BookerName = t.Booker?.Name,
         CreatedAt = t.CreatedAt,
         UpdatedAt = t.UpdatedAt,
     };

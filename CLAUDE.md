@@ -70,7 +70,8 @@ Key invariants (enforce server-side, per §3.5 of the SRS):
 - Over-allocation (a resource's concurrent effort exceeding its weekly availability) is **not blocked** — it is surfaced as a non-blocking `warnings` array on the created/updated allocation, and flagged in Gantt/dashboard views.
 - Phase date ranges and milestone due dates are validated against the project window; a project's `budgetType` must agree with its budget fields (`fee` needs `budget`, `hours` needs `budgetHours`).
 - Time off does **not** block allocation either, but overlapping leave for the same resource **is** rejected (409) — that is a data error, not a legitimate warning state. Leave reduces `effectiveCapacityHours` in the utilisation report; `utilisation` itself stays measured against **gross** availability so the ratio is comparable across releases.
-- A resource may not be its own manager. `manager_id` is `ON DELETE SET NULL` (the one exception to the RESTRICT convention): being named as a manager is descriptive and must not block a delete.
+- A resource may not be its own manager. `manager_id` is `ON DELETE SET NULL`: being named as a manager is descriptive and must not block a delete. The same reasoning covers `allocation.booker_id` and `time_off.booker_id` (V003) — these three are the only exceptions to the RESTRICT convention.
+- A **booker** (V003) is business data: the person a booking or leave record was arranged by, chosen in the Schedule's day-cell dialog. It is deliberately separate from `created_by`, which is audit attribution stamped from the authenticated principal and never user-editable.
 
 ## Authn / authz
 
